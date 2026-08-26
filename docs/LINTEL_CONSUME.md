@@ -10,6 +10,9 @@ Choreo is the data-plane **compiler object**. Lintel is the control plane. Union
 python3 -m choreoir check examples/copy.json
 python3 -m choreoir propose examples/copy.json
 python3 -m choreoir propose examples/fails/layout_cover.json   # reject.where = L
+python3 -m choreoir propose examples/fails/value_mismatch.json \
+  --tensors examples/fails/value_mismatch.tensors.json \
+  --expected examples/fails/value_mismatch.expected.json   # reject.where = V
 python3 -m choreoir check examples/fails/value_mismatch.json \
   --tensors examples/fails/value_mismatch.tensors.json \
   --expected examples/fails/value_mismatch.expected.json   # where = V
@@ -25,7 +28,8 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 - [`examples/copy.proposal.json`](../examples/copy.proposal.json) / [`examples/gemm.proposal.json`](../examples/gemm.proposal.json)
 - [`examples/copy.pin.json`](../examples/copy.pin.json) / [`examples/gemm.pin.json`](../examples/gemm.pin.json)
 - [`examples/fails/layout_cover.proposal.json`](../examples/fails/layout_cover.proposal.json) — `{where: L}`
-- T5-lite `{where}` corpus: [`examples/fails/`](../examples/fails/) — W (`unknown_buffer`, `role_mismatch`, `pipeline_depth`), L (`layout_cover`, `mma_shape`), S (`sync_race`), V (`value_mismatch` + tensors). `choreo propose` runs W/L/S only; V is `--tensors --expected`.
+- [`examples/fails/value_mismatch.proposal.json`](../examples/fails/value_mismatch.proposal.json) — `{where: V}` (needs `--tensors` / `--expected`)
+- T5-lite `{where}` corpus: [`examples/fails/`](../examples/fails/) — W (`unknown_buffer`, `role_mismatch`, `pipeline_depth`), L (`layout_cover`, `mma_shape`), S (`sync_race`), V (`value_mismatch` + tensors). `choreo propose` always walks W/L/S; V is folded into `reject.where` only when `--tensors` and `--expected` are both set (Kernel-only propose does not invent a V edge).
 
 ## `%k` (`cache-key.v0`)
 
@@ -43,7 +47,7 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 
 ## `{where}` (`adapter-proposal.v0`)
 
-`choreo propose` emits `lintel.adapter_proposal.v0`. On admit error, `reject.{where,hint,finding}` is the CFG edge. `where` ∈ `W|L|S|V` only. `compile_ok` is Lintel's **post-sink** gate (missing `nvcc`/`ccec` here is a W **warning**, not that gate).
+`choreo propose` emits `lintel.adapter_proposal.v0`. On admit error, `reject.{where,hint,finding}` is the CFG edge. `where` ∈ `W|L|S|V` only. V is opt-in (`--tensors` + `--expected`); without those flags the envelope is W/L/S. `compile_ok` is Lintel's **post-sink** gate (missing `nvcc`/`ccec` here is a W **warning**, not that gate). The nested `finding` uses Lintel's shape (`gate`, `node`, `msg`, `element`) — it does **not** repeat `where`.
 
 Canonical Kernel JSON is lowercase ops (`copy`, `mma`, …). Lintel examples that use PascalCase (`Copy`) are accepted on **read**. This tree also has `reduce` / `yield` and `target` / `compiler_ver` on the Kernel — Choreo is source of truth for Kernel encoding. Schema: [`schemas/adapter-proposal.v0.schema.json`](../schemas/adapter-proposal.v0.schema.json).
 

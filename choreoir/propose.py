@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .ast import Kernel
 from .check import Finding, check
+from .interp import check_value
 from .jsonio import PROPOSAL_SCHEMA, kernel_to_dict
 from .knobs import nv_arch, target_family
 from .pin import (
@@ -17,17 +18,41 @@ from .pin import (
 GATES = ("W", "L", "S", "V")
 
 
+def admit_findings(
+    kernel: Kernel,
+    *,
+    tensors: dict | None = None,
+    expected: dict | None = None,
+) -> list[Finding]:
+    """W/L/S always. V only when both tensors and expected are provided and W/L/S are clean."""
+    findings = list(check(kernel))
+    if (
+        tensors is not None
+        and expected is not None
+        and not any(f.severity == "error" for f in findings)
+    ):
+        findings.extend(check_value(kernel, tensors, expected))
+    return findings
+
+
 def adapter_proposal(
     kernel: Kernel,
     findings: list[Finding] | None = None,
     *,
+    tensors: dict | None = None,
+    expected: dict | None = None,
     enum_id: str | None = None,
     artifact_kind: str = "source",
     toolchain: str = "",
 ) -> dict:
-    """Envelope Lintel copies onto adapter_gate. This tree does not walk the CFG."""
+    """Envelope Lintel copies onto adapter_gate. This tree does not walk the CFG.
+
+    V is included only when ``tensors`` and ``expected`` are both given
+    (or when the caller already computed ``findings``). Kernel-only
+    propose still walks W/L/S.
+    """
     if findings is None:
-        findings = check(kernel)
+        findings = admit_findings(kernel, tensors=tensors, expected=expected)
     family = target_family(kernel.target) or ""
     arch = "davinci" if family == "ascend" else (nv_arch(kernel.target) if family == "cuda" else "")
     sink = sink_id(family, artifact_kind, toolchain)

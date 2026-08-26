@@ -1,0 +1,146 @@
+{
+  "schema": "lintel.adapter_proposal.v0",
+  "adapter_id": "choreo.v0",
+  "graph_hash": "sha256:da10ec6e5ccfe27c7ee10f4fe4db4a5d41588fe4a0e4d8de08dc7ad0cadbf300",
+  "hw_id": "nvidia.sm_80",
+  "compiler_ver": "choreoir==0.1.1;cuda.cxx",
+  "enum_id": "copy",
+  "kernel": {
+    "name": "copy",
+    "target": "cuda",
+    "params": [
+      {
+        "name": "A",
+        "dtype": "f16",
+        "shape": [
+          2,
+          2
+        ]
+      },
+      {
+        "name": "B",
+        "dtype": "f16",
+        "shape": [
+          2,
+          2
+        ]
+      }
+    ],
+    "buffers": [
+      {
+        "name": "A",
+        "space": "gmem",
+        "dtype": "f16",
+        "layout": {
+          "shape": [
+            2,
+            2
+          ],
+          "stride": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "name": "S",
+        "space": "smem",
+        "dtype": "f16",
+        "layout": {
+          "shape": [
+            2,
+            2
+          ],
+          "stride": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "name": "B",
+        "space": "gmem",
+        "dtype": "f16",
+        "layout": {
+          "shape": [
+            2,
+            2
+          ],
+          "stride": [
+            2,
+            1
+          ]
+        }
+      }
+    ],
+    "partitions": [
+      {
+        "name": "load",
+        "role": "load",
+        "width": 4
+      },
+      {
+        "name": "store",
+        "role": "store",
+        "width": 4
+      }
+    ],
+    "body": [
+      {
+        "op": "copy",
+        "id": "c0",
+        "src": "A",
+        "dst": "S",
+        "partition": "load"
+      },
+      {
+        "op": "barrier",
+        "id": "b0",
+        "wait_for": [
+          "load"
+        ],
+        "arrive": "store"
+      },
+      {
+        "op": "copy",
+        "id": "c1",
+        "src": "S",
+        "dst": "B",
+        "partition": "store"
+      },
+      {
+        "op": "yield",
+        "id": "y0",
+        "values": [
+          "B"
+        ]
+      }
+    ],
+    "attrs": {},
+    "compiler_ver": "0.1.1"
+  },
+  "gates": [
+    "W",
+    "L",
+    "S",
+    "V"
+  ],
+  "reject": {
+    "ok": false,
+    "where": "V",
+    "hint": "B",
+    "reason": "expected 0.0 got 1.0",
+    "finding": {
+      "gate": "V",
+      "severity": "error",
+      "node": "B",
+      "msg": "expected 0.0 got 1.0",
+      "partition": null,
+      "thread": null,
+      "element": [
+        0,
+        0
+      ]
+    }
+  }
+}

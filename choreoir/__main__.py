@@ -69,13 +69,25 @@ def main(argv: list[str] | None = None) -> int:
 
     prp = sub.add_parser(
         "propose",
-        help="emit lintel.adapter_proposal.v0 (admit signals as CFG edges; not freeze)",
+        help="emit lintel.adapter_proposal.v0 (W/L/S as CFG edges; V if --tensors/--expected)",
     )
     prp.add_argument("kernel", type=Path)
     prp.add_argument("-o", "--out", type=Path, default=None)
     prp.add_argument("--graph-hash", default=None)
     prp.add_argument("--hw-id", default=None)
     prp.add_argument("--enum-id", default=None)
+    prp.add_argument(
+        "--tensors",
+        type=Path,
+        default=None,
+        help="with --expected, fold V into reject.where",
+    )
+    prp.add_argument(
+        "--expected",
+        type=Path,
+        default=None,
+        help="with --tensors, fold V into reject.where",
+    )
 
     d = sub.add_parser("dump", help="round-trip kernel JSON to stdout")
     d.add_argument("kernel", type=Path)
@@ -140,7 +152,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "propose":
         apply_pin_stamps(kernel, graph_hash=args.graph_hash, hw_id=args.hw_id)
-        doc = adapter_proposal(kernel, enum_id=args.enum_id)
+        if (args.tensors is None) ^ (args.expected is None):
+            print("propose: --tensors and --expected must be given together", file=sys.stderr)
+            return 2
+        tensors = expected = None
+        if args.tensors is not None:
+            tensors = _read_json(args.tensors)
+            expected = _read_json(args.expected)
+        doc = adapter_proposal(
+            kernel, tensors=tensors, expected=expected, enum_id=args.enum_id
+        )
         text = json.dumps(doc, indent=2) + "\n"
         if args.out is not None:
             args.out.write_text(text)

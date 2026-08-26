@@ -5,6 +5,7 @@ from pathlib import Path
 
 from choreoir.__main__ import main
 from choreoir.check import check
+from choreoir.interp import check_value
 from choreoir.jsonio import kernel_from_dict, kernel_to_dict, load_kernel_doc
 from choreoir.propose import adapter_proposal
 
@@ -99,12 +100,78 @@ def test_cli_propose_reject_exit(tmp_path, capsys):
     assert saved["adapter_id"] == "choreo.v0"
 
 
+def test_propose_value_fail_is_cfg_edge():
+    fails = ROOT / "examples" / "fails"
+    k = kernel_from_dict(json.loads((fails / "value_mismatch.json").read_text()))
+    tensors = json.loads((fails / "value_mismatch.tensors.json").read_text())
+    expected = json.loads((fails / "value_mismatch.expected.json").read_text())
+    assert check(k) == []
+    fs = check_value(k, tensors, expected)
+    assert any(f.gate == "V" for f in fs)
+    doc = adapter_proposal(k, tensors=tensors, expected=expected)
+    rej = doc["reject"]
+    assert rej["ok"] is False
+    assert rej["where"] == "V"
+    assert "where" not in rej["finding"]
+    assert rej["finding"]["gate"] == "V"
+    assert rej["finding"]["node"] == "B"
+    assert rej["finding"]["element"] == [0, 0]
+    assert rej["hint"] == "B"
+
+
+def test_propose_without_tensors_skips_v():
+    """V is opt-in: Kernel-only propose does not invent a V edge."""
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "fails" / "value_mismatch.json").read_text()))
+    doc = adapter_proposal(k)
+    assert "reject" not in doc
+
+
+def test_cli_propose_value_reject(capsys):
+    fails = ROOT / "examples" / "fails"
+    rc = main(
+        [
+            "propose",
+            str(fails / "value_mismatch.json"),
+            "--tensors",
+            str(fails / "value_mismatch.tensors.json"),
+            "--expected",
+            str(fails / "value_mismatch.expected.json"),
+        ]
+    )
+    assert rc == 1
+    doc = json.loads(capsys.readouterr().out)
+    assert doc["reject"]["where"] == "V"
+    assert doc["reject"]["finding"]["gate"] == "V"
+    assert doc["reject"]["finding"]["element"] == [0, 0]
+
+
+def test_cli_propose_tensors_without_expected(capsys):
+    rc = main(
+        [
+            "propose",
+            str(ROOT / "examples" / "fails" / "value_mismatch.json"),
+            "--tensors",
+            str(ROOT / "examples" / "fails" / "value_mismatch.tensors.json"),
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "--tensors and --expected must be given together" in err
+
+
 def test_handshake_goldens_match_live_propose():
     for name in ("copy", "gemm"):
         k = kernel_from_dict(json.loads((ROOT / "examples" / f"{name}.json").read_text()))
         gold = json.loads((ROOT / "examples" / f"{name}.proposal.json").read_text())
         assert adapter_proposal(k) == gold
-    k = kernel_from_dict(json.loads((ROOT / "examples" / "fails" / "layout_cover.json").read_text()))
-    gold = json.loads((ROOT / "examples" / "fails" / "layout_cover.proposal.json").read_text())
+    fails = ROOT / "examples" / "fails"
+    k = kernel_from_dict(json.loads((fails / "layout_cover.json").read_text()))
+    gold = json.loads((fails / "layout_cover.proposal.json").read_text())
     assert adapter_proposal(k) == gold
     assert gold["reject"]["where"] == "L"
+    k = kernel_from_dict(json.loads((fails / "value_mismatch.json").read_text()))
+    tensors = json.loads((fails / "value_mismatch.tensors.json").read_text())
+    expected = json.loads((fails / "value_mismatch.expected.json").read_text())
+    gold = json.loads((fails / "value_mismatch.proposal.json").read_text())
+    assert adapter_proposal(k, tensors=tensors, expected=expected) == gold
+    assert gold["reject"]["where"] == "V"

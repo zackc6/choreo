@@ -89,6 +89,9 @@ python3 -m choreoir lower examples/gemm.json -o /tmp/choreo-npu --target ascend-
 python3 -m choreoir pin /tmp/choreo-out/pin.json
 python3 -m choreoir propose examples/copy.json
 python3 -m choreoir propose examples/fails/layout_cover.json
+python3 -m choreoir propose examples/fails/value_mismatch.json \
+  --tensors examples/fails/value_mismatch.tensors.json \
+  --expected examples/fails/value_mismatch.expected.json
 ```
 
 Or from Python:
