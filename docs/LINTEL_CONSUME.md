@@ -70,7 +70,7 @@ Canonical Kernel JSON is lowercase ops (`copy`, `mma`, …). Lintel examples tha
 
 Sinks consume `Partition`, `Barrier`, `Pipeline.depth`, layout, space, gmem writeback, MMA (CUDA scalar MAC / CCE `vmadd` fallback), and `Reduce` (CUDA nested sum; CCE `vector_dup`/`vadd` because aicore rejects scalar `+=`). Missing toolchain = warning, not a fake binary. **M2 `@triton.v0` knobs are standby** because a year-1 NVIDIA cubin has landed (stand-in path, not the later L5 ISA design). The Triton sidecar walks `Copy` / `Barrier` / `Pipeline` / `Mma` / `Reduce` (not the first-op stencil); it is still not `lower().text`.
 
-Lintel YEAR1 “Ascend waits until one NVIDIA cubin” is **satisfied** as a prerequisite. Dual-live *search* is still Lintel's call; this tree **always** lowers to both families. Public CI on this `main` fetches official nvcc and fails if cubin tests would skip (`CHOREO_REQUIRE_NVCC=1`). That is not Lintel `compile_ok`. `ccec` is not a public redist; NPU-bin tests skip on GitHub.
+Lintel YEAR1 “Ascend waits until one NVIDIA cubin” is **satisfied** as a prerequisite. Dual-live *search* is still Lintel's call; this tree **always** lowers to both families. Public CI on this `main` fetches official nvcc and fails if cubin tests would skip (`CHOREO_REQUIRE_NVCC=1`). That is not Lintel `compile_ok`. `ccec` is not a public redist; NPU-bin ELF tests skip on GitHub. Two `%k` for the same `copy` Kernel still run there: pin helpers + the land/sibling freeze addresses (`sha256:b78ccb3a…` / `sha256:5856cd4c…`).
 
 ## Two clocks (T5, not M3)
 

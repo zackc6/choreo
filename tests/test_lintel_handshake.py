@@ -15,7 +15,15 @@ from choreoir.check import check
 from choreoir.interp import check_value
 from choreoir.jsonio import kernel_from_dict
 from choreoir.lower import find_ccec, find_nvcc, materialize
-from choreoir.pin import cache_key_digest
+from choreoir.pin import (
+    FACE_ADAPTER_ID,
+    cache_key,
+    cache_key_digest,
+    graph_hash_of,
+    hw_id_of,
+    k_compiler_ver,
+    policy_id_of,
+)
 from choreoir.propose import adapter_proposal
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -119,6 +127,84 @@ def test_nvcc_cubin_pin_is_lintel_payload(tmp_path):
     assert pin["cache_key"]["adapter_id"] == "choreo.v0"
     assert pin["cache_key"]["compiler_ver"].endswith(";nvcc.cubin")
     assert pin["cache_key_digest"] == cache_key_digest(pin["cache_key"])
+    assert Path(out.artifact_path).read_bytes()[:4] == b"\x7fELF"
+    assert "target" not in pin["cache_key"]
+
+
+# Lintel freeze addresses for the same L2 graph, two sinks. Not a third kernel.
+_LAND_GRAPH = "sha256:bbcd57f9162e8a42bbf26df28a6b2a3ac2f8793061c036e198afeaf4f65d6db0"
+_LAND_NV_K = "sha256:b78ccb3a7475bb61043d1bbe6404b39786eb587de9a6b01705a718520d739d5b"
+_LAND_NPU_K = "sha256:5856cd4c2a004cc4c3a3b520ff785b710af0bb0c6997e05c1ede6d6d480e323a"
+
+
+def test_same_copy_kernel_two_sinks_two_k():
+    """Public CI: two %k from pin helpers. ELF dual-sink stays skipif both toolchains."""
+    src = json.loads((ROOT / "examples" / "copy.json").read_text())
+    nv = kernel_from_dict(src)
+    npu = kernel_from_dict(src)
+    npu.target = "ascend-a2"
+    nv_key = cache_key(
+        graph_hash=graph_hash_of(nv),
+        hw_id=hw_id_of(nv, "cuda"),
+        compiler_ver=k_compiler_ver(nv.compiler_ver, "nvcc.cubin"),
+        policy_id=policy_id_of(nv),
+    )
+    npu_key = cache_key(
+        graph_hash=graph_hash_of(npu),
+        hw_id=hw_id_of(npu, "ascend"),
+        compiler_ver=k_compiler_ver(npu.compiler_ver, "ccec.aicore"),
+        policy_id=policy_id_of(npu),
+    )
+    assert nv_key["adapter_id"] == npu_key["adapter_id"] == FACE_ADAPTER_ID
+    assert nv_key["graph_hash"] == npu_key["graph_hash"]
+    assert nv_key["hw_id"].startswith("nvidia.")
+    assert npu_key["hw_id"] == "ascend.davinci"
+    assert nv_key["compiler_ver"].endswith(";nvcc.cubin")
+    assert npu_key["compiler_ver"].endswith(";ccec.aicore")
+    assert cache_key_digest(nv_key) != cache_key_digest(npu_key)
+    assert "target" not in nv_key and "target" not in npu_key
+
+
+def test_lintel_land_and_ascend_sibling_k_digests():
+    """Canonical cache-key.v0 JSON is the freeze address Lintel already recorded."""
+    nv = cache_key(
+        graph_hash=_LAND_GRAPH,
+        hw_id="nvidia.b200.80gb",
+        compiler_ver="choreoir==0.1.8;nvcc.cubin",
+        policy_id="lintel.specialize.v0",
+    )
+    npu = cache_key(
+        graph_hash=_LAND_GRAPH,
+        hw_id="ascend.davinci",
+        compiler_ver="choreoir==0.1.8;ccec.aicore",
+        policy_id="lintel.specialize.v0",
+    )
+    assert cache_key_digest(nv) == _LAND_NV_K
+    assert cache_key_digest(npu) == _LAND_NPU_K
+    assert nv["adapter_id"] == npu["adapter_id"] == FACE_ADAPTER_ID
+    assert "target" not in nv and "target" not in npu
+
+
+def test_stamped_copy_cubin_pin_is_lintel_land_k(tmp_path):
+    """Live nvcc cubin pin under Lintel stamps is the land %k, not a source pin."""
+    import pytest
+
+    if find_nvcc() is None:
+        pytest.skip("need official nvcc")
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    out = materialize(
+        k,
+        tmp_path,
+        emit="cubin",
+        graph_hash=_LAND_GRAPH,
+        hw_id="nvidia.b200.80gb",
+    )
+    assert not out.errors(), out.findings
+    pin = json.loads((tmp_path / "pin.json").read_text())
+    assert pin["sink_id"] == "nvcc.cubin"
+    assert pin["cache_key_digest"] == _LAND_NV_K
+    assert pin["cache_key"]["hw_id"] == "nvidia.b200.80gb"
+    assert pin["artifact_kind"] == "cubin"
     assert Path(out.artifact_path).read_bytes()[:4] == b"\x7fELF"
     assert "target" not in pin["cache_key"]
 
