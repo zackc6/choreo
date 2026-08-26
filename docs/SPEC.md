@@ -64,7 +64,7 @@ This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kern
 | NVIDIA GPU (M2 sidecar) | `cuda`, `cuda-sm*` | Triton (`print_triton`) | Walks Copy / Barrier / Pipeline / Mma / Reduce. layouts → `BLOCK_*`, partitions → `num_warps`, `Pipeline.depth` → `tl.range(..., num_stages=depth)`, `Barrier` → `tl.debug_barrier`. Standby M2 kill if the cubin path is withdrawn. |
 | NVIDIA GPU (cubin-bound stand-in) | `cuda`, `cuda-sm*` | CUDA C++ (`print_cuda`); `nvcc` when present | smem → `__shared__`, Copy → thread-strided gmem↔onchip loops, Barrier → `__syncthreads`, Pipeline → staged smem, `Partition.width` → `__launch_bounds__` + stride (`width×32`), Mma ISA *name* from target, Reduce → per-thread dst sum. `lower().text` is this source. Not the designed cubin ISA. |
 | Ascend NPU (sidecar) | `ascend*` | TileLang (`print_ascend`) | GM args + spaces → GM/L1/L0C/UB, `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined` / `T.reduce_sum`, `T.Kernel(num_warps)`. Not the NPU-bin path. |
-| Ascend NPU (NPU-bin-bound stand-in) | `ascend*` | CCE (`print_ascendc`); `ccec` when present | gmem → `__gm__`, Copy → `copy_gm_to_ubuf` / `copy_ubuf_to_gm` (burst from layout), Barrier → `pipe_barrier`, Pipeline → staged loop, `Partition.width` → `block_idx < width` (year-1 one aicore: core 0 always runs), Mma → `cube.mmad` name + M/N/K loops + UB `vmadd` fallback, Reduce → nested loops + UB `vector_dup`/`vadd` (scalar `+=` is not an aicore op). `lower().text` is this source. UB stand-in for onchip (like CUDA `float` for dtypes). Not the designed NPU ISA. |
+| Ascend NPU (NPU-bin-bound stand-in) | `ascend*` | CCE (`print_ascendc`); `ccec` when present | gmem → `__gm__`, Copy → `copy_gm_to_ubuf` / `copy_ubuf_to_gm` (burst from layout), Barrier → `pipe_barrier`, Pipeline → staged loop **and** staged UB span for smem (CUDA stages `__shared__[depth]`), `Partition.width` → `block_idx < width` (year-1 one aicore: core 0 always runs), Mma → `cube.mmad` name + M/N/K loops + UB `vmadd` fallback, Reduce → nested loops + UB `vector_dup`/`vadd` (scalar `+=` is not an aicore op). `lower().text` is this source. UB stand-in for onchip (like CUDA `float` for dtypes). Not the designed NPU ISA. |
 
 `materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes the cubin/NPU-bin-bound stand-in (`.cu` / `.cce`) plus the Triton / TileLang sidecars, and tries official `nvcc` / `ccec` when present. Success writes a real ELF cubin or elf64-hiipu NPU object and pins `artifact_sha256` next to `source_sha256` in `pin.json` (`cache-key.v0` + sink payload) for Lintel `%k`. Missing toolchain is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile` — both write results back to gmem (load / math / store partitions). Do not glue NVIDIA and Ascend spaces into one enum. Do not treat homemade PTX/Davinci as the L5 design.
 
@@ -85,7 +85,7 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
 }
 ```
 
-`compiler_ver` on the Kernel JSON is the **choreoir** pin; it is not mutated inside one admit/lower walk. Lintel `%k` (`cache-key.v0`) names **both** that pin and the sink: `choreoir==0.1.9;nvcc.cubin`. `materialize` writes `pin.json` (`Lowered.as_k()`):
+`compiler_ver` on the Kernel JSON is the **choreoir** pin; it is not mutated inside one admit/lower walk. Lintel `%k` (`cache-key.v0`) names **both** that pin and the sink: `choreoir==0.1.10;nvcc.cubin`. `materialize` writes `pin.json` (`Lowered.as_k()`):
 
 ```json
 {
@@ -94,7 +94,7 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
     "schema_version": "cache-key.v0",
     "graph_hash": "sha256:…",
     "hw_id": "nvidia.sm_80",
-    "compiler_ver": "choreoir==0.1.9;nvcc.cubin",
+    "compiler_ver": "choreoir==0.1.10;nvcc.cubin",
     "adapter_id": "choreo.v0",
     "policy_id": "lintel.specialize.v0"
   },

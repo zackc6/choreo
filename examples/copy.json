@@ -1,6 +1,6 @@
 {
   "name": "copy",
-  "compiler_ver": "0.1.9",
+  "compiler_ver": "0.1.10",
   "params": [
     {"name": "A", "dtype": "f16", "shape": [2, 2]},
     {"name": "B", "dtype": "f16", "shape": [2, 2]}

@@ -24,7 +24,7 @@ python3 -m choreoir lower examples/gemm.json -o /tmp/npu --target ascend-a2 --em
 
 Year-1 allowlist: `copy`, `gemm_tile` (`Pipeline.depth=3` on gemm). Face `adapter_id`: `choreo.v0`.
 
-`choreo consume-check PATH` is the machine checker of this contract against a Lintel checkout (no `src/`; year-1 slots `copy`/`gemm_tile`; NVIDIA freeze `choreoir==0.1.9;nvcc.cubin` + `artifact.kind=cubin` + `artifact.launch`; session Finding JSON as a sibling of `reject`; propose kernel is the full AST; `%k` digest matches canonical JSON; no Triton as the year-1 sink). It does not freeze, land, or serve \(F\). Tests use tmp mini trees so CI does not clone Lintel. `examples/later/` is skipped. Local absorb (`/tmp/lintel-probe`) exits 0; `origin/main` (`fda2db2`) still fails (Triton pin, attn slots, `artifact.kind=choreo_kernel`, no `launch`).
+`choreo consume-check PATH` is the machine checker of this contract against a Lintel checkout (no `src/`; year-1 slots `copy`/`gemm_tile`; NVIDIA freeze `choreoir==0.1.10;nvcc.cubin` + `artifact.kind=cubin` + `artifact.launch`; session Finding JSON as a sibling of `reject`; propose kernel is the full AST; `%k` digest matches canonical JSON; no Triton as the year-1 sink). It does not freeze, land, or serve \(F\). Tests use tmp mini trees so CI does not clone Lintel. `examples/later/` is skipped. Local absorb (`/tmp/lintel-probe` `4686061`) pins 0.1.10 and passes; `origin/main` (`fda2db2`) still fails (Triton pin, attn slots, `artifact.kind=choreo_kernel`, no `launch`).
 
 Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower --emit`):
 
@@ -32,16 +32,16 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 - [`examples/copy.pin.json`](../examples/copy.pin.json) / [`examples/gemm.pin.json`](../examples/gemm.pin.json)
 - [`examples/fails/layout_cover.proposal.json`](../examples/fails/layout_cover.proposal.json) — `{where: L}`
 - [`examples/fails/value_mismatch.proposal.json`](../examples/fails/value_mismatch.proposal.json) — `{where: V}` (needs `--tensors` / `--expected`)
-- T5-lite `{where}` corpus: [`examples/fails/`](../examples/fails/) — W (`unknown_buffer`, `role_mismatch`, `pipeline_depth`, `pipeline_empty`), L (`layout_cover`, `mma_shape`), S (`sync_race`), V (`value_mismatch` + tensors). Kernel `compiler_ver` is `0.1.9` (same pin as `copy` / `gemm_tile`; adapter-proposal `compiler_ver` is `choreoir==0.1.9;cuda.cxx`). `choreo propose` always walks W/L/S; V is folded into `reject.where` only when `--tensors` and `--expected` are both set (Kernel-only propose does not invent a V edge). A `Pipeline` with `depth>=1` and empty `body` is `{where: W}` (`pipeline_empty`): the sink stages `body`, so a marker pipeline is syntax without effects. Nest ops like [`examples/gemm.json`](../examples/gemm.json).
+- T5-lite `{where}` corpus: [`examples/fails/`](../examples/fails/) — W (`unknown_buffer`, `role_mismatch`, `pipeline_depth`, `pipeline_empty`), L (`layout_cover`, `mma_shape`), S (`sync_race`), V (`value_mismatch` + tensors). Kernel `compiler_ver` is `0.1.10` (same pin as `copy` / `gemm_tile`; adapter-proposal `compiler_ver` is `choreoir==0.1.10;cuda.cxx`). `choreo propose` always walks W/L/S; V is folded into `reject.where` only when `--tensors` and `--expected` are both set (Kernel-only propose does not invent a V edge). A `Pipeline` with `depth>=1` and empty `body` is `{where: W}` (`pipeline_empty`): the sink stages `body`, so a marker pipeline is syntax without effects. Nest ops like [`examples/gemm.json`](../examples/gemm.json).
 
 ## `%k` (`cache-key.v0`)
 
-`materialize` writes `pin.json`. `cache_key` is the freeze key (additionalProperties false). `cache_key_digest` is sha256 of canonical JSON of that key (sorted keys, no whitespace) and is the lookup address, not a key field. Kernel AST is the **value at** the key. The installable package version is `0.1.9`, same as `Kernel.compiler_ver`.
+`materialize` writes `pin.json`. `cache_key` is the freeze key (additionalProperties false). `cache_key_digest` is sha256 of canonical JSON of that key (sorted keys, no whitespace) and is the lookup address, not a key field. Kernel AST is the **value at** the key. The installable package version is `0.1.10`, same as `Kernel.compiler_ver`.
 
 | Field | This tree emits | Not |
 |---|---|---|
 | `adapter_id` | `choreo.v0` | `nvcc.cubin` (that is `sink_id`) |
-| `compiler_ver` | `choreoir==0.1.9;nvcc.cubin` or `…;ccec.aicore` | Kernel-only `0.1.9` inside the key |
+| `compiler_ver` | `choreoir==0.1.10;nvcc.cubin` or `…;ccec.aicore` | Kernel-only `0.1.10` inside the key |
 | `hw_id` | `nvidia.sm_*` / `ascend.davinci`, or `--hw-id` | `Kernel.target` |
 | `graph_hash` | `sha256(lintel.graph.unspecified)` unless stamped | hash of Kernel JSON |
 | `policy_id` | `lintel.specialize.v0` (handshake slot) | |
@@ -72,9 +72,9 @@ Canonical Kernel JSON is lowercase ops (`copy`, `mma`, …). Lintel examples tha
 | NVIDIA | CUDA C++ (`print_cuda`) | official `nvcc -cubin` → ELF cubin | Triton knobs |
 | Ascend | CCE (`print_ascendc`) | official `ccec --cce-aicore-only -c` → elf64-hiipu | TileLang |
 
-Sinks consume `Partition` (width → CUDA `__launch_bounds__` / thread stride; CCE `block_idx < width`), `Barrier`, `Pipeline.depth`, layout, space, gmem writeback, MMA (CUDA scalar MAC / CCE `vmadd` fallback), and `Reduce` (CUDA per-thread dst sum; CCE `vector_dup`/`vadd` because aicore rejects scalar `+=`). Missing toolchain = warning, not a fake binary. **M2 `@triton.v0` knobs are standby** because a year-1 NVIDIA cubin has landed (stand-in path, not the later L5 ISA design). The Triton sidecar walks `Copy` / `Barrier` / `Pipeline` / `Mma` / `Reduce` (not the first-op stencil); it is still not `lower().text`.
+Sinks consume `Partition` (width → CUDA `__launch_bounds__` / thread stride; CCE `block_idx < width`), `Barrier`, `Pipeline.depth` (CUDA stages `__shared__[depth]`; CCE stages smem UB span × depth), layout, space, gmem writeback, MMA (CUDA scalar MAC / CCE `vmadd` fallback), and `Reduce` (CUDA per-thread dst sum; CCE `vector_dup`/`vadd` because aicore rejects scalar `+=`). Missing toolchain = warning, not a fake binary. **M2 `@triton.v0` knobs are standby** because a year-1 NVIDIA cubin has landed (stand-in path, not the later L5 ISA design). The Triton sidecar walks `Copy` / `Barrier` / `Pipeline` / `Mma` / `Reduce` (not the first-op stencil); it is still not `lower().text`.
 
-Lintel YEAR1 “Ascend waits until one NVIDIA cubin” is **satisfied** as a prerequisite. Dual-live *search* is still Lintel's call; this tree **always** lowers to both families. Public CI on this `main` fetches official nvcc and fails if cubin tests would skip (`CHOREO_REQUIRE_NVCC=1`). That is not Lintel `compile_ok`. `ccec` is not a public redist; NPU-bin ELF tests skip on GitHub. Two `%k` for the same `copy` Kernel still run there: pin helpers + the land/sibling freeze addresses (`sha256:71f32cff…` / `sha256:67a233d2…`).
+Lintel YEAR1 “Ascend waits until one NVIDIA cubin” is **satisfied** as a prerequisite. Dual-live *search* is still Lintel's call; this tree **always** lowers to both families. Public CI on this `main` fetches official nvcc and fails if cubin tests would skip (`CHOREO_REQUIRE_NVCC=1`). That is not Lintel `compile_ok`. `ccec` is not a public redist; NPU-bin ELF tests skip on GitHub. Two `%k` for the same `copy` Kernel still run there: pin helpers + the land/sibling freeze addresses (`sha256:181ce8b6…` / `sha256:d12ee57f…`).
 
 ## Two clocks (T5, not M3)
 
@@ -93,11 +93,11 @@ Rewriting `check.py` mid-walk is M3. Forbidden here.
 |---|---|
 | `print_triton` is a stencil; no cubin | NVIDIA ELF cubin via `nvcc`; Triton is sidecar |
 | MMA V not a year-1 gate | V for `Copy` / `Mma` / `Reduce` (`choreo check --tensors --expected`) |
-| Pipeline.depth not consumed | CUDA C++ and CCE consume depth |
+| Pipeline.depth not consumed | CUDA C++ stages `__shared__[depth]`; CCE stages smem UB span × depth |
 | JSON serde unpublished | `choreoir.jsonio`; lowercase ops canonical |
 | Z3 / thread CEX | Still v2. Not year-1 |
 
-Also stale on **origin** lintel `fda2db2`: “one NVIDIA binary first” as a *Choreo* gap; “Triton-first sink”; “choreo PR” as the evolve path; `compiler_ver` examples `choreoir==0.1.0;triton==3.3.0+cu128`; PoC CFG slots `choreo.attn.d3.w4` / `d2.w8`. Prefer `choreoir==0.1.9;nvcc.cubin` and year-1 SLA names `copy` / `gemm_tile`. Origin PoC `acme_attn_prefill.choreo.json` still uses a marker `Pipeline` with empty `body` (PascalCase ops, no `target`); live `choreo propose` on that envelope is `{where: W}` at `pipe0`. Year-1 `lower(sla=True)` also rejects those attn names.
+Also stale on **origin** lintel `fda2db2`: “one NVIDIA binary first” as a *Choreo* gap; “Triton-first sink”; “choreo PR” as the evolve path; `compiler_ver` examples `choreoir==0.1.0;triton==3.3.0+cu128`; PoC CFG slots `choreo.attn.d3.w4` / `d2.w8`. Prefer `choreoir==0.1.10;nvcc.cubin` and year-1 SLA names `copy` / `gemm_tile`. Origin PoC `acme_attn_prefill.choreo.json` still uses a marker `Pipeline` with empty `body` (PascalCase ops, no `target`); live `choreo propose` on that envelope is `{where: W}` at `pipe0`. Year-1 `lower(sla=True)` also rejects those attn names.
 
 A consume absorb is committed locally on lintel `main` but **cannot be pushed** (`cursor[bot]` 403):
 
@@ -119,8 +119,9 @@ A consume absorb is committed locally on lintel `main` but **cannot be pushed** 
 - `1e6dab6` consume choreoir 0.1.9: partition-width sinks (`__launch_bounds__` / thread stride / `block_idx < width`); land `%k` `sha256:71f32cff…` / `sha256:67a233d2…`; freeze cubin digest `07aadb61…`
 - `1bdf4b6` copy `pin.launch` onto admit-record `artifact.launch` / freeze event (`<<<grid, block>>>`, not in `%k`)
 - `c16a6b8` land `%k` example notes `artifact.launch`
+- `4686061` consume choreoir 0.1.10: CCE stages smem UB by `Pipeline.depth`; NVIDIA land `%k` `sha256:181ce8b6…` / Ascend sibling `sha256:d12ee57f…`; copy cubin digest still `07aadb61…`; gemm NPU-bin `5ea1a7a8…`
 
-Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`. A throwaway `git am` of that 18-commit series onto origin `fda2db2` applies clean: year-1 slots `copy` / `gemm_tile`, freeze `artifact.kind=cubin` (`choreoir==0.1.9;nvcc.cubin`) plus `artifact.launch`, 35 session events, no `src/`.
+Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`. A throwaway `git am` of that 19-commit series onto origin `fda2db2` applies clean: year-1 slots `copy` / `gemm_tile`, freeze `artifact.kind=cubin` (`choreoir==0.1.10;nvcc.cubin`) plus `artifact.launch`, 35 session events, no `src/`.
 
 Files on the Lintel side that should absorb this: `docs/CHOREO.md`, `docs/DATA_PLANE.md`, `docs/ADAPTERS.md`, `docs/YEAR1.md`, `docs/SURVEY_MATCH.md`, `docs/LINTEL_IR.md`, `docs/POC.md`, `examples/admit-record.json` `compiler_ver` / `adapter_id` / `enum_id` / `cache_key_digest`, `examples/session-log.jsonl`, `schemas/session-event.v0.schema.json` Finding JSON, `schemas/adapter-proposal.v0.schema.json` op enum, `schemas/admit-record.v0.schema.json` `artifact.kind`, `examples/poc/*.json` / `*.lintel`, `examples/choreo/`, `examples/choreo/fails/`.
 

@@ -134,8 +134,8 @@ def test_nvcc_cubin_pin_is_lintel_payload(tmp_path):
 
 # Lintel freeze addresses for the same L2 graph, two sinks. Not a third kernel.
 _LAND_GRAPH = "sha256:bbcd57f9162e8a42bbf26df28a6b2a3ac2f8793061c036e198afeaf4f65d6db0"
-_LAND_NV_K = "sha256:71f32cff225611f4a03c77437866ed77556b720a0f7ea4ef8a32347fef62821c"
-_LAND_NPU_K = "sha256:67a233d217c6bb645bec8a29f6f20ce2a83fdcbe2b136ee4435992f1d863e7d0"
+_LAND_NV_K = "sha256:181ce8b6a5d092544ee4dab14b6157b4829e6308c243db22fbfd45b49f85e543"
+_LAND_NPU_K = "sha256:d12ee57fd220de14d826a598532beb74fc59a346a73279c06ef1c2154730c5de"
 
 
 def test_same_copy_kernel_two_sinks_two_k():
