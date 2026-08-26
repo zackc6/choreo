@@ -19,7 +19,8 @@ def print_cuda(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     (mma.sync / wgmma.mma_async / tcgen05.mma) from Kernel.target, Reduce →
     nested sum over axis.
     nvcc -cubin turns this into a cubin when the toolchain is present.
-    Required launch is <<<1, launch_nthreads>>> (recorded in pin facts.num_warps).
+    Required launch is <<<1, launch_nthreads>>> (recorded on pin.json ``launch``,
+    not in cache_key).
     """
     facts = facts or facts_from_kernel(kernel)
     fn = ident(kernel.name)

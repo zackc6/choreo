@@ -43,6 +43,7 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 | `graph_hash` | `sha256(lintel.graph.unspecified)` unless stamped | hash of Kernel JSON |
 | `policy_id` | `lintel.specialize.v0` (handshake slot) | |
 | `cache_key_digest` (pin sibling) | sha256 of canonical `cache_key` JSON | a sixth field *inside* `cache_key` |
+| `launch` (pin sibling) | `{grid, block, num_warps, num_stages}` so serve can `<<<grid, block>>>` the cubin | a cache-key field. CUDA `block = num_warps×32`; Ascend year-1 `block=1` |
 
 `Kernel.target` stays on the AST and as pin **payload** so `lower()` can replay. Admission is `hw_id`. Schema copy: [`schemas/cache-key.v0.schema.json`](../schemas/cache-key.v0.schema.json) (Lintel remains source of truth for field names).
 

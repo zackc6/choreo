@@ -17,5 +17,11 @@
   "sink_id": "cuda.cxx",
   "artifact_kind": "source",
   "artifact_sha256": null,
-  "source_sha256": "394da0d1562e583f71b193a2de408c14a6bfee5e842647519de831ba3c6967b8"
+  "source_sha256": "394da0d1562e583f71b193a2de408c14a6bfee5e842647519de831ba3c6967b8",
+  "launch": {
+    "grid": 1,
+    "block": 256,
+    "num_warps": 8,
+    "num_stages": 1
+  }
 }

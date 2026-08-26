@@ -150,6 +150,25 @@ def launch_nthreads(facts: ScheduleFacts) -> int:
     return max(facts.num_warps * 32, 32)
 
 
+def launch_of(facts: ScheduleFacts) -> dict[str, int]:
+    """How to launch the cubin / NPU-bin. Payload, not a cache-key field.
+
+    CUDA: ``<<<grid, block>>>`` with ``block = num_warps × 32``.
+    Ascend: year-1 one aicore (``block=1``); ``Partition.width`` is the
+    ``block_idx`` predicate, not the launch size.
+    """
+    if facts.family == "ascend":
+        block = 1
+    else:
+        block = launch_nthreads(facts)
+    return {
+        "grid": 1,
+        "block": block,
+        "num_warps": facts.num_warps,
+        "num_stages": facts.num_stages,
+    }
+
+
 def ident(name: str) -> str:
     cleaned = "".join(ch if ch.isalnum() else "_" for ch in name)
     if not cleaned or cleaned[0].isdigit():

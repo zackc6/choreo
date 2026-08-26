@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .ast import Kernel
 from .check import Finding, check
-from .knobs import YEAR1_KERNELS, ScheduleFacts, facts_from_kernel, ident, nv_arch, target_family
+from .knobs import YEAR1_KERNELS, ScheduleFacts, facts_from_kernel, ident, launch_of, nv_arch, target_family
 from .pin import (
     PIN_SCHEMA,
     adapter_id,
@@ -66,7 +66,7 @@ class Lowered:
             compiler_ver=k_compiler_ver(self.compiler_ver, sink),
             policy_id=self.policy_id,
         )
-        return {
+        payload = {
             "schema_version": PIN_SCHEMA,
             "cache_key": key,
             "cache_key_digest": cache_key_digest(key),
@@ -80,6 +80,9 @@ class Lowered:
             "artifact_sha256": self.artifact_sha256 or None,
             "source_sha256": self.source_sha256,
         }
+        if self.facts is not None:
+            payload["launch"] = launch_of(self.facts)
+        return payload
 
     def as_manifest(self) -> dict:
         return {

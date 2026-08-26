@@ -167,6 +167,38 @@ def test_cli_lower_stamps_graph_hash(tmp_path, capsys):
     assert pin["target"] == "cuda"
 
 
+def test_pin_records_launch_not_in_cache_key(tmp_path):
+    """Serve needs <<<grid, block>>>. Derived from Partition.width. Not a %k field."""
+    from choreoir.knobs import launch_nthreads, launch_of
+
+    copy = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    pin = materialize(copy, tmp_path / "copy", emit="source").as_k()
+    _assert_lintel_key(pin["cache_key"])
+    assert "launch" not in pin["cache_key"]
+    assert pin["launch"]["grid"] == 1
+    assert pin["launch"]["num_warps"] == 8
+    assert pin["launch"]["block"] == 256
+    assert pin["launch"]["num_stages"] == 1
+    out = lower(copy)
+    assert out.facts is not None
+    assert pin["launch"] == launch_of(out.facts)
+    assert pin["launch"]["block"] == launch_nthreads(out.facts)
+
+    gemm = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    gpin = materialize(gemm, tmp_path / "gemm", emit="source").as_k()
+    assert gpin["launch"]["num_warps"] == 12
+    assert gpin["launch"]["block"] == 384
+    assert gpin["launch"]["num_stages"] == 3
+
+    npu_k = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    npu_k.target = "ascend-a2"
+    npin = materialize(npu_k, tmp_path / "npu", emit="source").as_k()
+    assert npin["family"] == "ascend"
+    assert npin["launch"]["block"] == 1
+    assert npin["launch"]["num_warps"] == 8
+    assert "launch" not in npin["cache_key"]
+
+
 def test_handshake_goldens_match_live_source_pin(tmp_path):
     for name in ("copy", "gemm"):
         k = kernel_from_dict(json.loads((ROOT / "examples" / f"{name}.json").read_text()))
