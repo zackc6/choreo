@@ -420,6 +420,36 @@ def test_cuda_partition_width_is_codegen():
     assert "num_warps=4" in lower(wide).triton_text
 
 
+def test_partition_width_wins_over_attrs_num_warps():
+    """CUDA launch bounds follow Partition.width. attrs.num_warps is the Triton sidecar."""
+    from choreoir.knobs import launch_of
+    from choreoir.print_cuda import print_cuda
+
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    k.attrs = {**k.attrs, "num_warps": "1"}
+    assert check(k) == []
+    out = lower(k)
+    assert out.errors() == []
+    assert out.facts is not None
+    assert out.facts.num_warps == 1
+    assert out.facts.partition_warps == 8
+    cuda = print_cuda(k)
+    assert "__launch_bounds__(256)" in cuda
+    assert "_i += 128" in cuda  # load/store width 4
+    assert "__launch_bounds__(32)" not in cuda
+    assert launch_of(out.facts) == {"grid": 1, "block": 256, "num_warps": 8, "num_stages": 1}
+    assert "num_warps=1" in out.triton_text
+    gemm = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    gemm.attrs = {**gemm.attrs, "num_warps": "1"}
+    gout = lower(gemm)
+    assert gout.facts is not None
+    assert gout.facts.partition_warps == 12
+    assert gout.facts.num_warps == 1
+    assert "__launch_bounds__(384)" in print_cuda(gemm)
+    assert launch_of(gout.facts)["block"] == 384
+    assert launch_of(gout.facts)["num_warps"] == 12
+
+
 def test_cce_partition_width_is_codegen():
     from choreoir.print_ascendc import print_ascendc
 
@@ -511,6 +541,21 @@ def test_nvcc_cubin_pipeline_depth_not_unstage_by_attrs(tmp_path):
     base = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
     mutated = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
     mutated.attrs = {**mutated.attrs, "num_stages": "1"}
+    b = materialize(base, tmp_path / "base", emit="cubin")
+    m = materialize(mutated, tmp_path / "mut", emit="cubin")
+    assert b.artifact_kind == "cubin" and m.artifact_kind == "cubin", (b.findings, m.findings)
+    hb = Path(b.artifact_path).read_bytes()
+    hm = Path(m.artifact_path).read_bytes()
+    assert hb[:4] == hm[:4] == b"\x7fELF"
+    assert hashlib.sha256(hb).digest() == hashlib.sha256(hm).digest()
+
+
+@pytest.mark.skipif(find_nvcc() is None, reason="nvcc not installed (stand-in writes .cu only)")
+def test_nvcc_cubin_partition_width_not_shrink_by_attrs(tmp_path):
+    """attrs.num_warps=1 must not shrink year-1 copy cubin launch bounds."""
+    base = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    mutated = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    mutated.attrs = {**mutated.attrs, "num_warps": "1"}
     b = materialize(base, tmp_path / "base", emit="cubin")
     m = materialize(mutated, tmp_path / "mut", emit="cubin")
     assert b.artifact_kind == "cubin" and m.artifact_kind == "cubin", (b.findings, m.findings)

@@ -16,7 +16,9 @@ def print_cuda(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     smem → __shared__, Copy → gmem↔onchip index loops, Barrier → __syncthreads,
     Pipeline.depth → staged shared arrays (attrs.num_stages is the Triton sidecar
     and does not unstage this reservation), Partition.width → __launch_bounds__
-    and thread-strided loops (width warps × 32), Mma → scalar MAC plus named ISA
+    (summed widths × 32; attrs.num_warps is the Triton sidecar and does not
+    shrink this block) and thread-strided loops (width warps × 32), Mma → scalar
+    MAC plus named ISA
     (mma.sync / wgmma.mma_async / tcgen05.mma) from Kernel.target, Reduce →
     nested sum over axis.
     nvcc -cubin turns this into a cubin when the toolchain is present.

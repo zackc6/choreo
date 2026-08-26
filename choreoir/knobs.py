@@ -13,10 +13,12 @@ YEAR1_KERNELS = frozenset({"copy", "gemm_tile"})
 class ScheduleFacts:
     """Inputs to codegen. Kind-2 knobs plus what the sinks must consume.
 
-    ``num_stages`` is the Triton sidecar / ``pin.launch`` knob and may come from
-    ``attrs.num_stages``. CUDA/CCE buffer staging uses ``pipeline_depth``
-    (max ``Pipeline.depth``, else 1) so that attr cannot unstage the cubin or
-    NPU-bin while the loop still walks ``op.depth``.
+    ``num_warps`` / ``num_stages`` are Triton sidecar / ``pin.launch`` knobs and
+    may come from ``attrs``. CUDA launch bounds and ``pin.launch.block`` use
+    ``partition_warps`` (sum of ``Partition.width``). CUDA/CCE buffer staging
+    uses ``pipeline_depth`` (max ``Pipeline.depth``, else 1). Those attrs must
+    not shrink the cubin or NPU-bin while loops still walk ``width×32`` /
+    ``op.depth``.
     """
 
     target: str
@@ -24,6 +26,7 @@ class ScheduleFacts:
     num_warps: int
     num_stages: int
     pipeline_depth: int
+    partition_warps: int
     block: int
     block_m: int
     block_n: int
@@ -82,6 +85,17 @@ def target_family(target: str) -> str | None:
     return None
 
 
+def partition_warps_of(kernel: Kernel) -> int:
+    """Sum of ``Partition.width``. CUDA ``__launch_bounds__`` and
+    ``pin.launch.block`` use this. ``attrs.num_warps`` is the Triton sidecar
+    and must not shrink the cubin block while Copy/Mma/Reduce still stride
+    by ``width×32``.
+    """
+    if not kernel.partitions:
+        return 4
+    return sum(p.width for p in kernel.partitions)
+
+
 def pipeline_depth_of(kernel: Kernel) -> int:
     """Max ``Pipeline.depth`` on the AST. ``1`` when the body has no Pipeline.
 
@@ -101,7 +115,7 @@ def facts_from_kernel(kernel: Kernel) -> ScheduleFacts:
     barriers = [op for op in ops if isinstance(op, Barrier)]
 
     pipe_depth = pipeline_depth_of(kernel)
-    num_warps = sum(p.width for p in kernel.partitions) if kernel.partitions else 4
+    part_warps = partition_warps_of(kernel)
 
     block = 1
     if copies:
@@ -144,9 +158,10 @@ def facts_from_kernel(kernel: Kernel) -> ScheduleFacts:
     return ScheduleFacts(
         target=kernel.target,
         family=family,
-        num_warps=_int_attr("num_warps", num_warps),
+        num_warps=_int_attr("num_warps", part_warps),
         num_stages=_int_attr("num_stages", pipe_depth),
         pipeline_depth=pipe_depth,
+        partition_warps=part_warps,
         block=_int_attr("BLOCK", block),
         block_m=_int_attr("BLOCK_M", block_m),
         block_n=_int_attr("BLOCK_N", block_n),
@@ -165,25 +180,29 @@ def partition_nthreads(width: int) -> int:
 
 
 def launch_nthreads(facts: ScheduleFacts) -> int:
-    """Block size implied by summed partition widths (``num_warps``)."""
-    return max(facts.num_warps * 32, 32)
+    """CUDA block size from summed ``Partition.width``, not ``attrs.num_warps``."""
+    return max(facts.partition_warps * 32, 32)
 
 
 def launch_of(facts: ScheduleFacts) -> dict[str, int]:
     """How to launch the cubin / NPU-bin. Payload, not a cache-key field.
 
-    CUDA: ``<<<grid, block>>>`` with ``block = num_warps × 32``.
+    CUDA: ``<<<grid, block>>>`` with ``block = partition_warps × 32``.
+    ``pin.launch.num_warps`` matches that block so serve can run the cubin.
+    ``attrs.num_warps`` stays on the Triton sidecar.
     Ascend: year-1 one aicore (``block=1``); ``Partition.width`` is the
     ``block_idx`` predicate, not the launch size.
     """
     if facts.family == "ascend":
         block = 1
+        warps = facts.num_warps
     else:
         block = launch_nthreads(facts)
+        warps = facts.partition_warps
     return {
         "grid": 1,
         "block": block,
-        "num_warps": facts.num_warps,
+        "num_warps": warps,
         "num_stages": facts.num_stages,
     }
 
