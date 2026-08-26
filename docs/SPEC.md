@@ -50,7 +50,7 @@ Forbidden (in this IR, forever):
 | **S** sync | Every cross-partition `Copy`/`Mma` has a dominating `Barrier`; no cyclic wait | `{node, partition?, msg}` |
 | **V** value-sim | Interpreter on a tiny concrete shape matches a reference `numpy` kernel | `{node, index?, expected, got}` |
 
-v1 implements W fully (including role/space: gmem→onchip wants `load`, onchip→gmem wants `store`, MMA/Reduce want `math`; `generic` is the escape; `Pipeline.body` must be the staged region — empty body is a W error), L for static shapes, S for barrier pairing (localized to arriving `partition` + `thread=0` first lane), V for `Copy`, `Mma`, and `Reduce` on CPU (`choreo check --tensors --expected` runs W→L→S then V). SMT (Argus Z3) is v2: same finding schema, heavier solver.
+v1 implements W fully (including role/space: gmem→onchip wants `load`, onchip→gmem wants `store`, MMA/Reduce want `math`; `generic` is the escape; `Pipeline.body` must be the staged region — empty body is a W error), L for static shapes, S for barrier pairing (localized to arriving `partition` + `thread=0` first lane) **and** cyclic `wait_for` → `arrive`, V for `Copy`, `Mma`, and `Reduce` on CPU (`choreo check --tensors --expected` runs W→L→S then V). SMT (Argus Z3) is v2: same finding schema, heavier solver.
 
 These gates are **T2-color signals**, not serving oracles (T6). Passing V does not mean SGLang A/B.
 

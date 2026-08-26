@@ -18,6 +18,7 @@ EXPECT = {
     "unknown_buffer.json": ("W", "c0"),
     "layout_cover.json": ("L", "buffer.A"),
     "sync_race.json": ("S", "c1"),
+    "cyclic_wait.json": ("S", "b0"),
     "role_mismatch.json": ("W", "c1"),
     "mma_shape.json": ("L", "m0"),
     "pipeline_depth.json": ("W", "p0"),

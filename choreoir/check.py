@@ -311,8 +311,9 @@ def _layout(k: Kernel) -> list[Finding]:
 
 
 def _sync(k: Kernel) -> list[Finding]:
-    """Cross-partition data ops must be named in some Barrier.wait_for before a consumer arrives."""
+    """Cross-partition data ops need a dominating Barrier; wait_for→arrive must be acyclic."""
     f: list[Finding] = []
+    f.extend(_cyclic_wait(k))
     producers: dict[str, str] = {}  # buffer -> last writer partition
     satisfied: set[tuple[str, str]] = set()  # (writer_part, arriver)
 
@@ -348,3 +349,74 @@ def _sync(k: Kernel) -> list[Finding]:
             for w in op.wait_for:
                 satisfied.add((w, op.arrive))
     return f
+
+
+def _cyclic_wait(k: Kernel) -> list[Finding]:
+    """S: Barrier.wait_for → arrive is a DAG. Self-wait and load↔store loops fail."""
+    adj: dict[str, list[tuple[str, str]]] = {}
+    barriers: list[Barrier] = []
+    for op in flatten_ops(k.body):
+        if isinstance(op, Barrier):
+            barriers.append(op)
+            for w in op.wait_for:
+                adj.setdefault(w, []).append((op.arrive, op.id))
+    cyclic = _wait_cycle_partitions(adj)
+    if not cyclic:
+        return []
+    hits = [
+        op
+        for op in barriers
+        if any(w in cyclic and op.arrive in cyclic for w in op.wait_for)
+    ]
+    if not hits:
+        return []
+    op = min(hits, key=lambda o: o.id)
+    return [
+        Finding(
+            "S",
+            "error",
+            op.id,
+            "cyclic wait among partitions",
+            partition=op.arrive,
+            thread=0,
+        )
+    ]
+
+
+def _wait_cycle_partitions(adj: dict[str, list[tuple[str, str]]]) -> set[str]:
+    """Partitions that sit on a cycle in the wait_for → arrive graph."""
+    index: dict[str, int] = {}
+    low: dict[str, int] = {}
+    stack: list[str] = []
+    onstack: set[str] = set()
+    cyclic: set[str] = set()
+    idx = 0
+
+    def strongconnect(u: str) -> None:
+        nonlocal idx
+        index[u] = low[u] = idx
+        idx += 1
+        stack.append(u)
+        onstack.add(u)
+        for v, _bid in adj.get(u, []):
+            if v not in index:
+                strongconnect(v)
+                low[u] = min(low[u], low[v])
+            elif v in onstack:
+                low[u] = min(low[u], index[v])
+        if low[u] == index[u]:
+            comp: list[str] = []
+            while True:
+                w = stack.pop()
+                onstack.remove(w)
+                comp.append(w)
+                if w == u:
+                    break
+            self_loop = any(dst == u for dst, _bid in adj.get(u, []))
+            if len(comp) > 1 or self_loop:
+                cyclic.update(comp)
+
+    for u in list(adj):
+        if u not in index:
+            strongconnect(u)
+    return cyclic

@@ -116,6 +116,63 @@ def test_cross_partition_copy_needs_barrier():
     assert not any(f.gate == "S" for f in check(k2))
 
 
+def test_cyclic_wait_is_sync_error():
+    a = Buffer("A", "gmem", Layout((8, 8), (8, 1)), "f16")
+    s = Buffer("S", "smem", Layout((8, 8), (8, 1)), "f16")
+    b = Buffer("B", "gmem", Layout((8, 8), (8, 1)), "f16")
+    k = Kernel(
+        "copy",
+        buffers=(a, s, b),
+        partitions=(
+            Partition("load", "load", 4),
+            Partition("store", "store", 4),
+        ),
+        body=(
+            Copy("c0", "A", "S", "load"),
+            Barrier("b0", wait_for=("store",), arrive="load"),
+            Barrier("b1", wait_for=("load",), arrive="store"),
+            Copy("c1", "S", "B", "store"),
+        ),
+    )
+    fs = check(k)
+    cyc = [f for f in fs if f.gate == "S" and "cyclic wait" in f.msg]
+    assert cyc
+    assert cyc[0].thread == 0
+    assert cyc[0].node == "b0"
+    assert cyc[0].as_dict()["where"] == "S"
+
+    acyclic = Kernel(
+        "copy",
+        buffers=(a, s, b),
+        partitions=(
+            Partition("load", "load", 4),
+            Partition("store", "store", 4),
+        ),
+        body=(
+            Copy("c0", "A", "S", "load"),
+            Barrier("b0", wait_for=("load",), arrive="store"),
+            Copy("c1", "S", "B", "store"),
+        ),
+    )
+    assert not any(f.gate == "S" and "cyclic wait" in f.msg for f in check(acyclic))
+
+    self_wait = Kernel(
+        "copy",
+        buffers=(a, s, b),
+        partitions=(
+            Partition("load", "load", 4),
+            Partition("store", "store", 4),
+        ),
+        body=(
+            Copy("c0", "A", "S", "load"),
+            Barrier("b0", wait_for=("load",), arrive="load"),
+            Barrier("b1", wait_for=("load",), arrive="store"),
+            Copy("c1", "S", "B", "store"),
+        ),
+    )
+    assert any(f.gate == "S" and "cyclic wait" in f.msg for f in check(self_wait))
+
+
 def test_mma_shapes():
     a = Buffer("A", "smem", Layout((8, 4), (4, 1)), "f16")
     b = Buffer("B", "smem", Layout((4, 8), (8, 1)), "f16")

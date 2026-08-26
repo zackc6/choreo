@@ -1,0 +1,35 @@
+{
+  "name": "copy",
+  "compiler_ver": "0.1.11",
+  "target": "cuda",
+  "buffers": [
+    {
+      "name": "A",
+      "space": "gmem",
+      "dtype": "f16",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
+    },
+    {
+      "name": "S",
+      "space": "smem",
+      "dtype": "f16",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
+    },
+    {
+      "name": "B",
+      "space": "gmem",
+      "dtype": "f16",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
+    }
+  ],
+  "partitions": [
+    {"name": "load", "role": "load", "width": 4},
+    {"name": "store", "role": "store", "width": 4}
+  ],
+  "body": [
+    {"op": "copy", "id": "c0", "src": "A", "dst": "S", "partition": "load"},
+    {"op": "barrier", "id": "b0", "wait_for": ["store"], "arrive": "load"},
+    {"op": "barrier", "id": "b1", "wait_for": ["load"], "arrive": "store"},
+    {"op": "copy", "id": "c1", "src": "S", "dst": "B", "partition": "store"}
+  ]
+}

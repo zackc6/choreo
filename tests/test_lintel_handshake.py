@@ -72,6 +72,7 @@ def test_t5_fails_copy_onto_session_gate():
         ("layout_cover.json", "L"),
         ("mma_shape.json", "L"),
         ("sync_race.json", "S"),
+        ("cyclic_wait.json", "S"),
     ]
     seen: set[str] = set()
     for name, where in cases:
