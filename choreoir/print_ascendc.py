@@ -28,9 +28,9 @@ def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     staged UB span for smem (CUDA stages ``__shared__[depth]``),
     Partition.width → ``block_idx < width`` (year-1 launch is one aicore so
     core 0 always runs), Mma → named cube.mmad plus M/N/K loops and a UB
-    ``vmadd`` fallback (cube mad is later L5 / cube-capable arch). Reduce →
-    nested loops over ``axis`` plus UB ``vector_dup`` / ``vadd`` (scalar
-    ``+=`` is not an aicore op).
+    ``vmadd`` fallback indexed by layout stride (cube mad is later L5 /
+    cube-capable arch), Reduce → nested loops over ``axis`` plus UB
+    ``vector_dup`` / ``vadd`` (scalar ``+=`` is not an aicore op).
     """
     facts = facts or facts_from_kernel(kernel)
     fn = ident(kernel.name)
@@ -119,6 +119,14 @@ def _ub_ptr(name: str, kernel: Kernel, facts: ScheduleFacts) -> str:
     if facts.num_stages > 1 and buf.space == "smem":
         return f"({name} + _stage * {_stage_span_elems(buf)})"
     return name
+
+
+def _ub_at(name: str, kernel: Kernel, facts: ScheduleFacts, off: str) -> str:
+    """UB pointer plus a layout offset (Mma/Reduce). ``off==0`` is the base."""
+    base = _ub_ptr(name, kernel, facts)
+    if off == "0":
+        return base
+    return f"({base} + {off})"
 
 
 def _space_label(buf: Buffer, kernel: Kernel) -> str:
@@ -246,16 +254,21 @@ def _emit_mma(op: Mma, indent: str, kernel: Kernel, facts: ScheduleFacts) -> lis
     a_sp = _space_label(a, kernel)
     b_sp = _space_label(b, kernel)
     c_sp = _space_label(c, kernel)
+    a_off = _lin(a, ["i", "kk"])
+    b_off = _lin(b, ["kk", "j"])
+    c_off = _lin(c, ["i", "j"])
     return [
         f"{indent}// mma {op.id} {op.c} += {op.a}@{op.b}  isa={facts.isa} "
         f"M={m} K={k} N={n} @{op.partition} role={role} "
         f"{a_sp}@{b_sp}->{c_sp}",
         f"{indent}// cube mad needs later L5 / cube-capable arch; UB vmadd fallback",
+        f"{indent}// layout stride → element address (CUDA scalar MAC does the same)",
         f"{indent}for (int i = 0; i < {m}; ++i) {{",
         f"{indent}  for (int j = 0; j < {n}; ++j) {{",
         f"{indent}    for (int kk = 0; kk < {k}; ++kk) {{",
-        f"{indent}      vmadd({_ub_ptr(op.c, kernel, facts)}, {_ub_ptr(op.a, kernel, facts)}, "
-        f"{_ub_ptr(op.b, kernel, facts)}, 1);",
+        f"{indent}      vmadd({_ub_at(op.c, kernel, facts, c_off)}, "
+        f"{_ub_at(op.a, kernel, facts, a_off)}, "
+        f"{_ub_at(op.b, kernel, facts, b_off)}, 1);",
         f"{indent}    }}",
         f"{indent}  }}",
         f"{indent}}}",
