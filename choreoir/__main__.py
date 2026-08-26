@@ -9,7 +9,7 @@ from .check import check
 from .interp import check_value, simulate
 from .jsonio import kernel_to_dict, load_kernel_doc
 from .lower import lower, materialize
-from .pin import apply_pin_stamps, cache_key_digest, cache_key_errors, extract_cache_key
+from .pin import apply_pin_stamps, pin_doc_errors
 from .propose import adapter_proposal
 
 
@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Lintel policy_id stamp. Default: lintel.specialize.v0",
     )
 
-    pinp = sub.add_parser("pin", help="validate pin.json cache_key.v0 (Lintel handshake)")
+    pinp = sub.add_parser("pin", help="validate pin.json cache_key.v0 + launch (Lintel handshake)")
     pinp.add_argument("pin", type=Path)
 
     prp = sub.add_parser(
@@ -94,17 +94,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
     if args.cmd == "pin":
-        doc = _read_json(args.pin)
-        key = extract_cache_key(doc)
-        if key is None:
-            print(json.dumps(["no cache_key.v0 object in file"], indent=2))
-            return 1
-        errs = cache_key_errors(key)
-        stored = doc.get("cache_key_digest") if isinstance(doc, dict) else None
-        if isinstance(stored, str) and stored:
-            want = cache_key_digest(key)
-            if stored != want:
-                errs.append(f"cache_key_digest mismatch: stored {stored}, canonical {want}")
+        errs = pin_doc_errors(_read_json(args.pin))
         print(json.dumps(errs, indent=2))
         return 1 if errs else 0
 

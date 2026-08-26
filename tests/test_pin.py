@@ -123,6 +123,22 @@ def test_cli_pin_validates_cache_key(tmp_path, capsys):
     assert any("cache_key_digest mismatch" in e for e in errs2)
 
 
+def test_cli_pin_requires_launch_on_payload(tmp_path, capsys):
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    materialize(k, tmp_path, emit="source")
+    pin_path = tmp_path / "pin.json"
+    doc = json.loads(pin_path.read_text())
+    del doc["launch"]
+    pin_path.write_text(json.dumps(doc))
+    assert main(["pin", str(pin_path)]) == 1
+    errs = json.loads(capsys.readouterr().out)
+    assert any("missing launch" in e for e in errs)
+    bare = tmp_path / "key.json"
+    bare.write_text(json.dumps(doc["cache_key"]))
+    assert main(["pin", str(bare)]) == 0
+    assert json.loads(capsys.readouterr().out) == []
+
+
 def test_cache_key_digest_is_sorted_compact_json():
     key = {
         "policy_id": "lintel.specialize.v0",

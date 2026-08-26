@@ -31,6 +31,7 @@ CACHE_KEY_FIELDS = (
     "adapter_id",
     "policy_id",
 )
+LAUNCH_FIELDS = ("grid", "block", "num_warps", "num_stages")
 
 
 def sink_id(family: str, artifact_kind: str, toolchain: str = "") -> str:
@@ -168,6 +169,53 @@ def extract_cache_key(doc: Any) -> dict | None:
     if doc.get("schema_version") == CACHE_KEY_SCHEMA:
         return doc
     return None
+
+
+def _positive_int(val: Any) -> bool:
+    return isinstance(val, int) and not isinstance(val, bool) and val >= 1
+
+
+def launch_errors(obj: Any) -> list[str]:
+    """Structural check for pin.json ``launch`` (payload, not a cache-key field)."""
+    if not isinstance(obj, dict):
+        return ["launch must be an object"]
+    errs: list[str] = []
+    extra = sorted(set(obj) - set(LAUNCH_FIELDS))
+    missing = [k for k in LAUNCH_FIELDS if k not in obj]
+    if extra:
+        errs.append("launch additional properties: " + ", ".join(extra))
+    if missing:
+        errs.append("launch missing: " + ", ".join(missing))
+    for field in LAUNCH_FIELDS:
+        if field in obj and not _positive_int(obj.get(field)):
+            errs.append(f"launch.{field} must be an integer >= 1")
+    return errs
+
+
+def pin_doc_errors(doc: Any) -> list[str]:
+    """Validate pin.json (cache-key.v0 + launch) or a bare cache-key.v0 object.
+
+    Bare keys do not carry launch. ``choreo-pin.v1`` payloads do: serve needs
+    ``<<<grid, block>>>``. Launch is not a cache-key field.
+    """
+    key = extract_cache_key(doc)
+    if key is None:
+        return ["no cache_key.v0 object in file"]
+    errs = cache_key_errors(key)
+    if not isinstance(doc, dict):
+        return errs
+    stored = doc.get("cache_key_digest")
+    if isinstance(stored, str) and stored:
+        want = cache_key_digest(key)
+        if stored != want:
+            errs.append(f"cache_key_digest mismatch: stored {stored}, canonical {want}")
+    is_payload = doc.get("schema_version") == PIN_SCHEMA or "cache_key" in doc
+    if is_payload:
+        if doc.get("launch") is None:
+            errs.append("missing launch")
+        else:
+            errs.extend(launch_errors(doc.get("launch")))
+    return errs
 
 
 def apply_pin_stamps(
