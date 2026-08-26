@@ -58,7 +58,7 @@ Canonical Kernel JSON is lowercase ops (`copy`, `mma`, …). Lintel examples tha
 | NVIDIA | CUDA C++ (`print_cuda`) | official `nvcc -cubin` → ELF cubin | Triton knobs |
 | Ascend | CCE (`print_ascendc`) | official `ccec --cce-aicore-only -c` → elf64-hiipu | TileLang |
 
-Sinks consume `Partition`, `Barrier`, `Pipeline.depth`, layout, space, gmem writeback, MMA (CUDA scalar MAC / CCE `vmadd` fallback). Missing toolchain = warning, not a fake binary. **M2 `@triton.v0` knobs are standby** because a year-1 NVIDIA cubin has landed (stand-in path, not the later L5 ISA design).
+Sinks consume `Partition`, `Barrier`, `Pipeline.depth`, layout, space, gmem writeback, MMA (CUDA scalar MAC / CCE `vmadd` fallback). Missing toolchain = warning, not a fake binary. **M2 `@triton.v0` knobs are standby** because a year-1 NVIDIA cubin has landed (stand-in path, not the later L5 ISA design). The Triton sidecar walks `Copy` / `Barrier` / `Pipeline` / `Mma` (not the first-op stencil); it is still not `lower().text`.
 
 Lintel YEAR1 “Ascend waits until one NVIDIA cubin” is **satisfied** as a prerequisite. Dual-live *search* is still Lintel's call; this tree **always** lowers to both families.
 

@@ -61,7 +61,7 @@ This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kern
 | Family | `Kernel.target` | Sink | Consumes |
 |---|---|---|---|
 | CPU interpreter | (any) | `simulate` | Copy / Mma / Reduce values |
-| NVIDIA GPU (M2 sidecar) | `cuda`, `cuda-sm*` | Triton (`print_triton`) | layouts → `BLOCK_*`, partitions → `num_warps`, `Pipeline.depth` → `num_stages`, `Barrier` → `tl.debug_barrier`. Standby M2 kill if the cubin path is withdrawn. |
+| NVIDIA GPU (M2 sidecar) | `cuda`, `cuda-sm*` | Triton (`print_triton`) | Walks Copy / Barrier / Pipeline / Mma. layouts → `BLOCK_*`, partitions → `num_warps`, `Pipeline.depth` → `tl.range(..., num_stages=depth)`, `Barrier` → `tl.debug_barrier`. Standby M2 kill if the cubin path is withdrawn. |
 | NVIDIA GPU (cubin-bound stand-in) | `cuda`, `cuda-sm*` | CUDA C++ (`print_cuda`); `nvcc` when present | smem → `__shared__`, Copy → gmem↔onchip loops, Barrier → `__syncthreads`, Pipeline → staged smem, Mma ISA *name* from target. `lower().text` is this source. Not the designed cubin ISA. |
 | Ascend NPU (sidecar) | `ascend*` | TileLang (`print_ascend`) | GM args + spaces → GM/L1/L0C/UB, `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined`. Not the NPU-bin path. |
 | Ascend NPU (NPU-bin-bound stand-in) | `ascend*` | CCE (`print_ascendc`); `ccec` when present | gmem → `__gm__`, Copy → `copy_gm_to_ubuf` / `copy_ubuf_to_gm` (burst from layout), Barrier → `pipe_barrier`, Pipeline → staged loop, Mma → `cube.mmad` name + M/N/K loops + UB `vmadd` fallback. `lower().text` is this source. UB stand-in for onchip (like CUDA `float` for dtypes). Not the designed NPU ISA. |

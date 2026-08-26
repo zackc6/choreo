@@ -103,6 +103,7 @@ def test_lower_cuda_pipeline_depth_is_num_stages():
     assert out.facts is not None
     assert out.facts.num_stages == 3
     assert "num_stages=3" in out.triton_text
+    assert "for _stage in tl.range(0, 3, num_stages=3)" in out.triton_text
     assert "_stage" in out.text
 
 
