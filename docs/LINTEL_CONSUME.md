@@ -113,7 +113,7 @@ A consume absorb is committed locally on lintel `main` but **cannot be pushed** 
 - `e5c8fa0` C4 is one live face (`choreo.v0`); M2 knobs are standby because the nvcc cubin path has landed
 - `0f2fea4` C4 kill is “we compiled Choreo” without serving \(F\); cubin already exists
 
-Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`.
+Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`. A throwaway `git am` of that 15-commit series onto origin `fda2db2` applies clean: year-1 slots `copy` / `gemm_tile`, freeze `artifact.kind=cubin` (`choreoir==0.1.8;nvcc.cubin`), 35 session events, no `src/`.
 
 Files on the Lintel side that should absorb this: `docs/CHOREO.md`, `docs/DATA_PLANE.md`, `docs/ADAPTERS.md`, `docs/YEAR1.md`, `docs/SURVEY_MATCH.md`, `docs/LINTEL_IR.md`, `docs/POC.md`, `examples/admit-record.json` `compiler_ver` / `adapter_id` / `enum_id` / `cache_key_digest`, `examples/session-log.jsonl`, `schemas/session-event.v0.schema.json` Finding JSON, `schemas/adapter-proposal.v0.schema.json` op enum, `schemas/admit-record.v0.schema.json` `artifact.kind`, `examples/poc/*.json` / `*.lintel`, `examples/choreo/`, `examples/choreo/fails/`.
 
