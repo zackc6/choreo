@@ -32,5 +32,5 @@ def test_print_gemm_contains_dot():
     )
     text = print_triton(k)
     assert "tl.dot" in text
-    assert "BLOCK_M" in text
+    assert "BLOCK_M: tl.constexpr = 8" in text
     assert "mma m0" in text

@@ -150,3 +150,18 @@ def test_finding_schema_keys():
     )
     d = check(k)[0].as_dict()
     assert set(d) == {"gate", "severity", "node", "partition", "thread", "element", "msg"}
+
+
+def test_layout_span_localizes_last_element():
+    a = Buffer("A", "gmem", Layout((8, 8), (1, 1)), "f16")
+    s = Buffer("S", "smem", Layout((8, 8), (1, 1)), "f16")
+    k = Kernel(
+        "copy",
+        buffers=(a, s),
+        partitions=(Partition("load", "load", 1),),
+        body=(Copy("c0", "A", "S", "load"),),
+    )
+    fs = check(k)
+    cover = [f for f in fs if f.gate == "L" and "cover" in f.msg]
+    assert cover
+    assert cover[0].element == (7, 7)

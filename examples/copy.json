@@ -20,5 +20,6 @@
     {"op": "copy", "id": "c0", "src": "A", "dst": "S", "partition": "load"},
     {"op": "yield", "id": "y0", "values": ["S"]}
   ],
-  "attrs": {}
+  "attrs": {},
+  "target": "cuda"
 }

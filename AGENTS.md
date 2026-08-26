@@ -1,8 +1,10 @@
 # Agent instructions
 
-**Choreo IR** is a typed kernel choreography IR for the data plane — Lintel’s L4 face, not a compiler company.
+**Choreo IR** is a typed kernel choreography IR for the data plane — Lintel’s L4 face.
 
-This tree is the compiler object: construct, check, simulate, and print. It is not an orchestrator, MCP server, agent graph, or fitness-\(F\) controller. Lintel (admit freeze, land / revert / reject, serving \(F\)) lives in a different repo.
+**Not a compiler company** is Lintel’s SKU (control plane), not a skip on codegen. **This tree is the compiler object:** construct, check, simulate, print, and lower to NVIDIA GPU and Ascend NPU. Compiler evolution happens *to* this object. **Lintel IR** is the control-plane IR that conducts that loop.
+
+It is not an orchestrator, MCP server, agent graph, or fitness-\(F\) controller.
 
 ## Git
 

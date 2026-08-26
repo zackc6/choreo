@@ -16,7 +16,7 @@ Co-design with Lintel: [`goals/lintel-codesign.md`](../goals/lintel-codesign.md)
 ## 2. Core sorts
 
 ```text
-Kernel      = { name, params, buffers, partitions, body, attrs }
+Kernel      = { name, target, params, buffers, partitions, body, attrs }
 Param       = { name, dtype, shape }            # shape may contain symbols
 Buffer      = { name, space, layout, dtype }
 Layout      = { shape, stride }                 # CuTe-style pair; v1: static ints
@@ -33,7 +33,7 @@ Role        = load | math | store | generic
 Allowed:
 
 - Create/replace a `Kernel` AST (or a JSON encoding of it).
-- Edit enumerated fields: tile sizes, partition widths, pipeline depth, layout strides, which `Copy`/`Mma` variant.
+- Edit enumerated fields: `target`, tile sizes, partition widths, pipeline depth, layout strides, which `Copy`/`Mma` variant.
 
 Forbidden (in this IR, forever):
 
@@ -56,13 +56,17 @@ These gates are **T2-color signals**, not serving oracles (T6). Passing V does n
 
 ## 5. Lowering
 
-| Target | When |
-|---|---|
-| CPU interpreter | v1, always on |
-| Triton printer | v0.1 **sketch** (not a compiler; does not consume pipeline/barrier/space) |
-| Named sinks (GPU cubin, Ascend NPU bin; Gluon / TLX / TileLang / HIP) | plugins — do not fork a new execution ISA |
+This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kernel)` is refused if `check` has `severity=error` or `target` is missing.
 
-Choreo **storage layout** is an explicit contract for admit (cheap `shape × stride`). v0.1 `print_triton` is a deterministic stencil, not a compiler: it does not consume pipeline depth, barrier pairing, or memory space as codegen inputs. A later named sink must. Work partitioning lives in `Partition` + `Layout`, not in a hidden compiler pass.
+| Family | `Kernel.target` | Sink | Consumes |
+|---|---|---|---|
+| CPU interpreter | (any) | `simulate` | Copy / Mma / Reduce values |
+| NVIDIA GPU | `cuda`, `cuda-sm*` | Triton source (`print_triton`) | layouts → `BLOCK_*`, partitions → `num_warps`, `Pipeline.depth` → `num_stages`, `Barrier` → `tl.debug_barrier` |
+| Ascend NPU | `ascend*` | TileLang-Ascend source (`print_ascend`) | spaces → GM/L1/L0C/UB, `Copy`/`Mma`/`Barrier`/`Pipeline` as `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined` |
+
+Year-1 SLA names: `copy`, `gemm_tile`. Device cubin / NPU bin are outside this pin (Triton/CANN). Do not fork a new execution ISA. Do not glue NVIDIA and Ascend spaces into one enum.
+
+Choreo **storage layout** is an explicit contract for admit and for the sinks (cheap `shape × stride`). Work partitioning lives in `Partition` + `Layout`.
 
 ## 6. JSON finding schema
 

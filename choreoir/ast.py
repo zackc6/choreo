@@ -105,6 +105,7 @@ class Kernel:
     partitions: tuple[Partition, ...] = ()
     body: tuple[Op, ...] = ()
     attrs: dict[str, str] = field(default_factory=dict)
+    target: str = ""  # cuda | cuda-sm90 | cuda-sm100 | ascend-a2 | ...
 
     def buffer(self, name: str) -> Buffer | None:
         return next((b for b in self.buffers if b.name == name), None)

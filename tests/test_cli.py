@@ -30,3 +30,18 @@ def test_cli_sim_gemm_expected(capsys):
 def test_cli_print_triton(capsys):
     assert main(["print", str(ROOT / "examples" / "copy.json")]) == 0
     assert "@triton.jit" in capsys.readouterr().out
+
+
+def test_cli_print_ascend(capsys):
+    assert main(["print", str(ROOT / "examples" / "gemm.json"), "--target", "ascend-a2"]) == 0
+    out = capsys.readouterr().out
+    assert "T.gemm" in out
+    assert "alloc_L1" in out
+
+
+def test_cli_print_refuses_without_target(tmp_path, capsys):
+    p = tmp_path / "notarget.json"
+    p.write_text((ROOT / "examples" / "copy.json").read_text().replace('"target": "cuda"', '"target": ""'))
+    assert main(["print", str(p)]) == 1
+    findings = json.loads(capsys.readouterr().out)
+    assert any("named target" in f["msg"] for f in findings)

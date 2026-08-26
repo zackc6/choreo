@@ -1,8 +1,12 @@
 # Choreo IR
 
-Typed kernel choreography IR for the data plane — Lintel’s L4 face, not a compiler company.
+Typed kernel choreography IR for the data plane — Lintel’s L4 face.
 
-This tree is the compiler object: an IR you can construct, check, simulate, and print. It is not an orchestrator, MCP server, agent graph, or fitness-\(F\) controller. Lintel (control plane: admit freeze, land / revert / reject, serving \(F\)) lives in a different repo.
+**Not a compiler company** is the SKU, not a skip on codegen. Lintel sells the control plane (admit, freeze, land / revert / reject, serving \(F\)): vendor-neutral, not Cake, not a TVM distro. The demo that fails the product test is still “we compiled Choreo.”
+
+**This tree is the compiler object:** construct, check, simulate, print, and **lower to NVIDIA GPU and Ascend NPU**. Sinks are classical (deterministic functions of the AST). Compiler evolution — deeper gates, sinks that consume the schedule, rare spec bumps — happens *to* this object.
+
+**Lintel IR** is the control-plane IR that conducts that loop. It does not rewrite Choreo’s dialect at search time.
 
 Co-design: [`goals/lintel-codesign.md`](goals/lintel-codesign.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](skills/choreo-lintel-codesign/SKILL.md). Git: commit and push `main` only; no pull requests.
 
@@ -29,7 +33,7 @@ The living AI-compiler survey’s **LLM-oriented IR** is the agent-visible *face
 
 Cake, Argus, and TIRx are evidence for **admit mechanisms** (typed schedule, localized `{where}`, cheap pre-device filter), not a license to glue those languages into one dialect. Cake hides layout; Argus makes layout algebra the spec. Choreo picks a third cell: cheap `shape × stride` so `{where: L}` can fire. No year-1 Z3. No CuTe work-partition.
 
-Lintel owns Cake’s *harness loop* (arXiv:2608.12629 §3–4). Choreo is the typed IR the agent edits. Lowering is a named sink (GPU cubin, Ascend NPU bin), not `print_triton`. See [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
+Lintel owns Cake’s *harness loop* (arXiv:2608.12629 §3–4) as **control-plane IR**. Choreo is the compiler object the agent edits **and** the object that must lower to NVIDIA GPU and Ascend NPU. `print_triton` is the GPU sink (Triton source, knobs from the AST). `print_ascend` is the NPU sink (TileLang-Ascend source). Neither is a cubin/NPU-bin toolchain. See [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
 
 | Piece | Cake (NVIDIA/CMU) | Argus (CausalFlow et al.) | TIRx (TVM) | Choreo v0.1 |
 |---|---|---|---|---|
@@ -37,18 +41,18 @@ Lintel owns Cake’s *harness loop* (arXiv:2608.12629 §3–4). Choreo is the ty
 | Layout algebra + compile-time discharge | No | Yes (tags + SMT, thread/element CEX) | Storage contract, not CuTe work-partition | Cheap `shape×stride` only; SMT not in year-1 |
 | FFI construct / inspect / mutate | Harness (not public) | Pythonic DSL | TVM FFI | **Yes** (Python AST is the FFI; JSON too) |
 | Pre-GPU admit | Safety / conformance / schedule gates | Layout SMT | Wellformed / sync / race / value-sim | **W/L/S/V signals** (not serving \(F\)) |
-| Lowering | CUDA/PTX (cubin) | AMD ISA | CUDA C++/PTX | CPU interpreter + Triton **sketch** (not a compiler) |
+| Lowering | CUDA/PTX (cubin) | AMD ISA | CUDA C++/PTX | **Required:** NV GPU (Triton source) and Ascend NPU (TileLang source); not a device toolchain |
 | Public tree | No | No | TVM | This repo |
 
 Vendor DSLs (TileLang, Gluon, TLX, CuTe DSL, FlyDSL, ThunderKittens) are **sinks** this IR may lower *into*. They are not the LLM-oriented face. `@tirx.v0` / `@cake.v0` / `@tilelang.ascend` are optional doors, not a second live face.
 
 ## Non-goals (explicit)
 
-- Control plane: multi-agent loops, MCP, budget/stop, serving \(F\), workflow compile.
+- Control plane: multi-agent loops, MCP, budget/stop, serving \(F\), workflow compile (that is Lintel IR).
 - One IR that is both portable HLO and peak kernel DSL (§5.1.1: do not unify those).
 - Fluency dumps of LLVM, MLIR, Triton, or PTX as the mutation language.
 - Claiming library-class TFLOPS or serving A/B in v1 (C2 stays open until oracles exist).
-- Replacing `opt` / Inductor / Triton as the execution compiler.
+- Replacing `opt` / Inductor / Triton / CANN as the **device** compiler. This tree **does** lower *into* them.
 
 ## v1 deliverable
 
@@ -57,7 +61,7 @@ A **checkable IR**, not a kernel-agent product.
 1. **AST** — kernel, buffers, layouts, partitions (roles), ops (`Copy`, `Mma`, `Reduce`, `Barrier`, `Pipeline`, `Yield`).
 2. **Admit W/L/S/V** — wellformed, layout legality, sync/race, tiny-tile value sim — returning *localized* findings (program point, optional thread/element), not scraped compiler stdout.
 3. **CPU interpreter** — so admit does not require a GPU (TIRx-style sim).
-4. **One printer** — Triton sketches for copy and GEMM-tile kernels.
+4. **Lower** — admit-gated `lower()` to NVIDIA GPU (Triton) and Ascend NPU (TileLang). Year-1 allowlist: `copy`, `gemm_tile`. Source, not cubin / NPU bin.
 
 v2 (still data plane): plugin lowers to Gluon/TLX/TileLang/HIP; optional Z3 on layout tags.
 v3 (other repo): an agent that mutates Choreo IR and consumes finding JSON.
@@ -79,15 +83,17 @@ python3 -m choreoir sim examples/gemm.json \
   --tensors examples/gemm.tensors.json \
   --expected examples/gemm.expected.json
 python3 -m choreoir print examples/gemm.json
+python3 -m choreoir print examples/gemm.json --target ascend-a2
 ```
 
 Or from Python:
 
 ```python
-from choreoir import Buffer, Copy, Kernel, Layout, Partition, check
+from choreoir import Buffer, Copy, Kernel, Layout, Partition, check, lower
 
 k = Kernel(
     "copy",
+    target="cuda",
     buffers=(
         Buffer("A", "gmem", Layout((8, 8), (8, 1)), "f16"),
         Buffer("S", "smem", Layout((8, 8), (8, 1)), "f16"),
@@ -96,6 +102,11 @@ k = Kernel(
     body=(Copy("c0", "A", "S", "load"),),
 )
 assert check(k) == []
+gpu = lower(k)
+assert gpu.family == "cuda" and "@triton.jit" in gpu.text
+k.target = "ascend-a2"
+npu = lower(k)
+assert npu.family == "ascend" and "T.copy" in npu.text
 ```
 
 Findings are JSON-serializable (`Finding.as_dict`) so a later agent can consume them without scraping stdout.
@@ -117,7 +128,7 @@ Findings are JSON-serializable (`Finding.as_dict`) so a later agent can consume 
 ## Layout
 
 ```text
-choreoir/     Python AST + checkers + interpreter + Triton printer + JSON FFI
+choreoir/     AST + checkers + interpreter + NV/Ascend sinks + JSON FFI
 examples/     copy and GEMM-tile kernels as JSON
 tests/        wellformed / layout / sync / sim / printer / CLI
 docs/SPEC.md  grammar and admit rules

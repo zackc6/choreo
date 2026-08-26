@@ -18,6 +18,7 @@ from .ast import (
 def kernel_to_dict(k: Kernel) -> dict:
     return {
         "name": k.name,
+        "target": k.target,
         "params": [{"name": p.name, "dtype": p.dtype, "shape": list(p.shape)} for p in k.params],
         "buffers": [
             {
@@ -56,6 +57,7 @@ def kernel_from_dict(d: dict) -> Kernel:
         ),
         body=tuple(_op_from_dict(op) for op in d.get("body", [])),
         attrs=dict(d.get("attrs", {})),
+        target=str(d.get("target", "")),
     )
 
 

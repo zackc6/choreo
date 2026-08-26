@@ -47,5 +47,6 @@
     {"op": "mma", "id": "m0", "a": "As", "b": "Bs", "c": "C", "partition": "math"},
     {"op": "yield", "id": "y0", "values": ["C"]}
   ],
-  "attrs": {"tile": "2x2"}
+  "attrs": {"tile": "2x2"},
+  "target": "cuda"
 }

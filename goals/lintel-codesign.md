@@ -5,7 +5,7 @@ Skill (how to implement it): [`skills/choreo-lintel-codesign/SKILL.md`](../skill
 
 ## One line
 
-**Yes** as a typed L4 face for Lintel. **No** as a compiler company. **No** as Cake + Argus + TIRx glued into one dialect.
+**Yes** as a typed L4 face for Lintel. **No** as a compiler *company* (SKU). **Yes** as a compiler *object* that must lower to NVIDIA GPU and Ascend NPU. **No** as Cake + Argus + TIRx glued into one dialect.
 
 ## Objective
 
@@ -16,6 +16,14 @@ Co-design Choreo and Lintel as two objects:
 
 Mixing those kinds is how a control-plane company accidentally becomes a kernel language.
 
+## Not a compiler company vs this compiler object
+
+**Not a compiler company** = Lintel’s product is the control plane (vendor-neutral admit / freeze / \(F\)), not selling Cake, TIRx, or a TVM distro. Do not demo “we compiled Choreo.”
+
+**This tree is the compiler object** = Choreo is the IR you construct, check, simulate, print, and **always lower to NVIDIA GPU and Ascend NPU**. Sinks are classical. That lowering was missing; it is in-scope forever.
+
+**Compiler evolution** happens *to* this object (gates, sinks, rare spec bumps on `main`). **Lintel IR** is the control-plane IR that conducts the loop (classify fail, corpus-gate, land / revert / reject). Choreo does not self-expand at search time.
+
 ## Cake’s three pieces (arXiv:2608.12629 §1–4)
 
 Only one is a Lintel object.
@@ -23,7 +31,7 @@ Only one is a Lintel object.
 | Cake piece | Object | Owner |
 |---|---|---|
 | (1) Typed IR the agent edits | A program | **Choreo** (face). Lintel *carries* it. |
-| (2) Lowering that derives barrier addresses, phase bits, TMEM offsets, descriptors, warp identity, then emits a device binary | A compiler / sink | **Not Lintel, not the face.** GPU cubin or Ascend NPU bin via pinned sinks. |
+| (2) Lowering that derives barrier addresses, phase bits, TMEM offsets, descriptors, warp identity, then emits a device binary | A compiler / sink | **This tree** must lower to NV GPU and Ascend NPU (source today). Cubin/NPU bin = device toolchain, not Lintel. |
 | (3) Evolving harness: recurring fail → verifier / primitive / cost cal / tactic, corpus-gated, agents write compiler under human merge gates | A workflow | **Lintel** — but only the control-plane slice of Cake’s “harness.” |
 
 Cake’s word *harness* is a bundle. Split it:
@@ -55,18 +63,18 @@ Choreo’s third cell: cheap `shape × stride` so `{where: L}` can fire. No Z3, 
 
 W / L / S / V are **T2-color signals**, not serving oracles. `check() == []` is not serving \(F\).
 
-## Lowering (v0.1 honesty)
+## Lowering (v0.1: source sinks, required families)
 
-A compiler here has to (1) take warp/core roles, barriers, pipeline depth, layouts, and memory spaces as **inputs to codegen**, (2) pick real instructions for a **named** target, (3) emit a binary you can measure.
+A compiler object here has to (1) take warp/core roles, barriers, pipeline depth, layouts, and memory spaces as **inputs to codegen**, (2) pick a **named** target family (NVIDIA GPU vs Ascend NPU), (3) emit source the device toolchain can compile. Cubin / NPU bin still need that toolchain.
 
-`choreoir.check` is a real checker (names, shape/stride cover, GEMM ranks, barrier pairing). `choreoir.print_triton` is **not** a compiler: first `Copy` or `Mma`, generic `@triton.jit`, `Barrier` / `Pipeline.depth` / widths / `tmem`/`smem` as comments, `BLOCK_M` unfilled, no target so no WGMMA vs `tcgen05`.
+`choreoir.lower` is admit-gated. `Kernel.target` is required (`cuda` / `cuda-sm*` / `ascend*`). Year-1 allowlist: `copy`, `gemm_tile`.
 
-The product-test that fails: “we compiled Choreo.”
-The in-tree falsifier: `examples/gemm.json` (Copy → Barrier → Mma). Attention `choreo.attn.d3.w4` only makes the same gap louder.
+- NVIDIA: Triton source; knobs from the AST; `tl.debug_barrier` from `Barrier`; `tl.range(..., num_stages=)` from `Pipeline.depth`.
+- Ascend: TileLang-Ascend source; spaces mapped GM/L1/L0C/UB; `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined`.
 
 ## Targets: GPU and Ascend NPU
 
-Do both as **SKUs**. Do not unify them in the AST.
+Do both as **required sinks** on this compiler object. Do not unify them in the AST.
 
 v0.1 `Space = gmem|smem|tmem|regs` and `Role = load|math|store` with warp `width` is NVIDIA-shaped. Ascend is Cube / Vector / Scalar, GM / L1 / UB / L0A / L0B / L0C, MTE queues. Spaces and roles are **target-indexed**. Same Finding schema. Not one `onchip` enum.
 
@@ -94,7 +102,7 @@ SLA allowlists two complete kernels. Payload is a program (kind 1); the *deal* i
 
 1. README / spec / skill never describe Choreo as Cake ∪ Argus ∪ TIRx as languages.
 2. Admit findings are localized `{where: W|L|S|V}` and are the only agent feedback from this tree.
-3. A named target + sink consumes `Partition`, `Barrier`, `Pipeline.depth`, layout, and space; comments-only printers are labeled sketches.
+3. `lower()` to NVIDIA and to Ascend consumes `Partition`, `Barrier`, `Pipeline.depth`, layout, and space; CLI `print` is admit-gated.
 4. Lintel (other repo) is the only place land / revert / reject / freeze / \(F\) live.
 5. GPU and Ascend are two sinks, not one averaged dialect.
 6. Compiler-evolution **commits on `main`** are proposed from Lintel evidence and never from in-process dialect rewrite. No GitHub PR on this repo.

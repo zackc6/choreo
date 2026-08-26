@@ -154,7 +154,9 @@ def _layout(k: Kernel) -> list[Finding]:
                     "error",
                     f"buffer.{b.name}",
                     err,
-                    element=(0,) * len(b.layout.shape),
+                    element=tuple(max(d - 1, 0) for d in b.layout.shape)
+                    if b.layout.shape and err == "stride does not cover shape"
+                    else ((0,) * len(b.layout.shape) if b.layout.shape else None),
                 )
             )
     for op in flatten_ops(k.body):

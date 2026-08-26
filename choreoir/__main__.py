@@ -8,13 +8,13 @@ from pathlib import Path
 from .check import check
 from .interp import check_value, simulate
 from .jsonio import kernel_from_dict, kernel_to_dict
-from .print_triton import print_triton
+from .lower import lower
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="choreo",
-        description="Admit, simulate, and print Choreo IR kernels. Data plane only.",
+        description="Admit, simulate, and lower Choreo IR (NVIDIA GPU / Ascend NPU). Data plane only.",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -26,8 +26,13 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--tensors", type=Path, required=True)
     s.add_argument("--expected", type=Path, default=None)
 
-    t = sub.add_parser("print", help="print a Triton sketch")
+    t = sub.add_parser("print", help="admit-gated lower to NVIDIA Triton or Ascend TileLang")
     t.add_argument("kernel", type=Path)
+    t.add_argument(
+        "--target",
+        default=None,
+        help="override Kernel.target (cuda | cuda-sm90 | ascend-a2 | ...)",
+    )
 
     d = sub.add_parser("dump", help="round-trip kernel JSON to stdout")
     d.add_argument("kernel", type=Path)
@@ -51,7 +56,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if findings else 0
 
     if args.cmd == "print":
-        sys.stdout.write(print_triton(kernel))
+        if args.target:
+            kernel.target = args.target
+        result = lower(kernel)
+        if result.errors():
+            print(json.dumps([f.as_dict() for f in result.findings], indent=2))
+            return 1
+        sys.stdout.write(result.text)
         return 0
 
     if args.cmd == "dump":
