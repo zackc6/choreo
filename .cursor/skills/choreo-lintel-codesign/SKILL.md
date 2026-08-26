@@ -1,0 +1,1 @@
+../../../skills/choreo-lintel-codesign/SKILL.md

@@ -2,6 +2,8 @@
 
 Status: draft. Data-plane object only. No agent protocol in this file.
 
+Co-design with Lintel: [`goals/lintel-codesign.md`](../goals/lintel-codesign.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](../skills/choreo-lintel-codesign/SKILL.md).
+
 ## 1. Design rules
 
 1. **One band.** Choreo is an L4 kernel IR. It does not represent framework graphs, MLIR pass pipelines, CUDA Graphs, or agent DAGs.
@@ -57,10 +59,10 @@ These gates are **T2-color signals**, not serving oracles (T6). Passing V does n
 | Target | When |
 |---|---|
 | CPU interpreter | v1, always on |
-| Triton printer | first *device* sink (C4-A ecosystem, Inductor default) |
-| CUDA C++ / Gluon / TLX / TileLang / HIP | plugins, v2 — do not fork a new execution ISA |
+| Triton printer | v0.1 **sketch** (not a compiler; does not consume pipeline/barrier/space) |
+| Named sinks (GPU cubin, Ascend NPU bin; Gluon / TLX / TileLang / HIP) | plugins — do not fork a new execution ISA |
 
-Choreo **storage layout** is an explicit contract consumed by the printer (TIRx-like). Work partitioning lives in `Partition` + `Layout`, not in a hidden compiler pass (Gluon-like explicitness, Cake-like roles).
+Choreo **storage layout** is an explicit contract for admit (cheap `shape × stride`). v0.1 `print_triton` is a deterministic stencil, not a compiler: it does not consume pipeline depth, barrier pairing, or memory space as codegen inputs. A later named sink must. Work partitioning lives in `Partition` + `Layout`, not in a hidden compiler pass.
 
 ## 6. JSON finding schema
 

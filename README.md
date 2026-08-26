@@ -1,8 +1,10 @@
 # Choreo IR
 
-Typed **kernel choreography IR** for the data plane.
+Typed **kernel choreography IR** for the data plane — Lintel’s L4 face, not a compiler company.
 
-This tree is the compiler object: an IR you can construct, check, simulate, and print. It is **not** an orchestrator, MCP server, agent graph, or fitness-\(F\) controller. Agents (if any) live in a different repo.
+This tree is the compiler object: an IR you can construct, check, simulate, and print. It is **not** an orchestrator, MCP server, agent graph, or fitness-\(F\) controller. Lintel (control plane: admit freeze, land / revert / reject, serving \(F\)) lives in a different repo.
+
+Co-design: [`goals/lintel-codesign.md`](goals/lintel-codesign.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](skills/choreo-lintel-codesign/SKILL.md).
 
 Upstream sketch: [zackc6/choreo](https://github.com/zackc6/choreo).
 
@@ -15,7 +17,7 @@ The living AI-compiler survey’s **LLM-oriented IR** is the agent-visible *face
 | Fluency IR (paste `.ll` / Triton text) | Out of scope — LLM4IR: syntax ≠ CFG/exec |
 | Summary / fingerprint | Optional later view over this AST, not the source of truth |
 | Intent / action (pass lists, hints) | Out of v1 — that is advisory *on* a compiler, not a kernel IR |
-| **Typed agent-facing IR** | **In scope** — Cake ∪ Argus ∪ TIRx |
+| **Typed agent-facing IR** | **In scope** — closed Choreo AST; union of **admit signals** (W/L/S/V), not Cake ∪ Argus ∪ TIRx as one dialect |
 | Translation glue | Out of scope |
 | Control-plane substrate (Auto / FlowCompile / AgentFlow) | **Forbidden here** |
 
@@ -23,20 +25,22 @@ The living AI-compiler survey’s **LLM-oriented IR** is the agent-visible *face
 
 **Hybrid split (invariant).** This IR is what a searcher may *mutate*. Classical passes own legality, lowering, and measure. LLM output must not silently define executable behavior.
 
-## Why “next” is a union, not a new band
+## Why “next” is a face + control plane, not a language union
 
-Cake, Argus, and TIRx are ★/B evidence for the *same* missing data-plane object, split across labs:
+Cake, Argus, and TIRx are evidence for **admit mechanisms** (typed schedule, localized `{where}`, cheap pre-device filter), not a license to glue those languages into one dialect. Cake hides layout; Argus makes layout algebra the spec. Choreo picks a third cell: cheap `shape × stride` so `{where: L}` can fire. No year-1 Z3. No CuTe work-partition.
 
-| Piece | Cake (NVIDIA/CMU) | Argus (CausalFlow et al.) | TIRx (TVM) | Choreo v1 |
+Lintel owns Cake’s *harness loop* (arXiv:2608.12629 §3–4). Choreo is the typed IR the agent edits. Lowering is a named sink (GPU cubin, Ascend NPU bin), not `print_triton`. See [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
+
+| Piece | Cake (NVIDIA/CMU) | Argus (CausalFlow et al.) | TIRx (TVM) | Choreo v0.1 |
 |---|---|---|---|---|
-| Typed schedule (roles, barriers, tiers) | Yes; **no** layout algebra | Implicit in the tile DSL | Orchestration in source | **Yes** |
-| Layout algebra + compile-time discharge | No | Yes (tags + SMT, thread/element/point CEX) | Storage contract, not CuTe work-partition | **Yes** (algebra + cheap checks; SMT optional) |
+| Typed schedule (roles, barriers, tiers) | Yes; **no** layout algebra | Implicit in the tile DSL | Orchestration in source | **Yes** (closed AST) |
+| Layout algebra + compile-time discharge | No | Yes (tags + SMT, thread/element CEX) | Storage contract, not CuTe work-partition | Cheap `shape×stride` only; SMT not in year-1 |
 | FFI construct / inspect / mutate | Harness (not public) | Pythonic DSL | TVM FFI | **Yes** (Python AST is the FFI; JSON too) |
-| Pre-GPU admit | Safety / conformance / schedule gates | Layout SMT | Wellformed / sync / race / value-sim | **Union: W/L/S/V** |
-| Lowering | CUDA/PTX | AMD ISA | CUDA C++/PTX | Interpreter + one Triton printer |
+| Pre-GPU admit | Safety / conformance / schedule gates | Layout SMT | Wellformed / sync / race / value-sim | **W/L/S/V signals** (not serving \(F\)) |
+| Lowering | CUDA/PTX (cubin) | AMD ISA | CUDA C++/PTX | CPU interpreter + Triton **sketch** (not a compiler) |
 | Public tree | No | No | TVM | This repo |
 
-Vendor DSLs (TileLang, Gluon, TLX, CuTe DSL, FlyDSL, ThunderKittens) are **sinks** this IR may lower *into*. They are not the LLM-oriented face.
+Vendor DSLs (TileLang, Gluon, TLX, CuTe DSL, FlyDSL, ThunderKittens) are **sinks** this IR may lower *into*. They are not the LLM-oriented face. `@tirx.v0` / `@cake.v0` / `@tilelang.ascend` are optional doors, not a second live face.
 
 ## Non-goals (explicit)
 
@@ -117,4 +121,7 @@ choreoir/     Python AST + checkers + interpreter + Triton printer + JSON FFI
 examples/     copy and GEMM-tile kernels as JSON
 tests/        wellformed / layout / sync / sim / printer / CLI
 docs/SPEC.md  grammar and admit rules
+goals/        co-design goals (Lintel control plane / Choreo data plane)
+skills/       implementer SOP for that cut
+AGENTS.md     which skill to read before editing
 ```
