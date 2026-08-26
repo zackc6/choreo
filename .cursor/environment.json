@@ -1,0 +1,4 @@
+{
+  "name": "Choreo IR",
+  "install": "python3 -m pip install -e '.[dev]'"
+}
