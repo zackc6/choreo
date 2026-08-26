@@ -111,6 +111,7 @@ A consume absorb is committed locally on lintel `main` but **cannot be pushed** 
 - `c962329` T5 fail envelopes and session-log kernels pin choreoir 0.1.8 (`choreoir==0.1.8;cuda.cxx`)
 - `d74f509` Q1 install pin is choreoir 0.1.8 (choreo `43fd20d` package version)
 - `e5c8fa0` C4 is one live face (`choreo.v0`); M2 knobs are standby because the nvcc cubin path has landed
+- `0f2fea4` C4 kill is “we compiled Choreo” without serving \(F\); cubin already exists
 
 Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`.
 
