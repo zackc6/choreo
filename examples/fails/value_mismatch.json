@@ -1,6 +1,6 @@
 {
   "name": "copy",
-  "compiler_ver": "0.1.1",
+  "compiler_ver": "0.1.8",
   "target": "cuda",
   "params": [
     {"name": "A", "dtype": "f16", "shape": [2, 2]},
