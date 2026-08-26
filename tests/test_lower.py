@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from choreoir.ast import (
     Barrier,
     Buffer,
@@ -13,7 +15,7 @@ from choreoir.ast import (
 )
 from choreoir.check import check
 from choreoir.jsonio import kernel_from_dict
-from choreoir.lower import lower
+from choreoir.lower import find_nvcc, lower, materialize
 from choreoir.print_triton import print_triton
 
 
@@ -70,9 +72,11 @@ def test_lower_cuda_copy_fills_block_and_warps():
     assert out.facts is not None
     assert out.facts.num_warps == 4
     assert out.facts.block == 64
-    assert "BLOCK: tl.constexpr = 64" in out.text
-    assert "num_warps=4" in out.text
-    assert "@triton.jit" in out.text
+    assert "__global__" in out.text
+    assert "__shared__" in out.text
+    assert "BLOCK: tl.constexpr = 64" in out.triton_text
+    assert "num_warps=4" in out.triton_text
+    assert "@triton.jit" in out.triton_text
 
 
 def test_lower_cuda_gemm_consumes_barrier_and_layouts():
@@ -82,9 +86,10 @@ def test_lower_cuda_gemm_consumes_barrier_and_layouts():
     assert out.facts is not None
     assert out.facts.num_warps == 8
     assert out.facts.n_barrier == 1
-    assert "BLOCK_M: tl.constexpr = 8" in out.text
-    assert "tl.debug_barrier()" in out.text
-    assert "num_stages=1" in out.text
+    assert "__syncthreads();" in out.text
+    assert "BLOCK_M: tl.constexpr = 8" in out.triton_text
+    assert "tl.debug_barrier()" in out.triton_text
+    assert "num_stages=1" in out.triton_text
 
 
 def test_lower_cuda_pipeline_depth_is_num_stages():
@@ -94,7 +99,8 @@ def test_lower_cuda_pipeline_depth_is_num_stages():
     assert out.errors() == []
     assert out.facts is not None
     assert out.facts.num_stages == 3
-    assert "num_stages=3" in out.text
+    assert "num_stages=3" in out.triton_text
+    assert "_stage" in out.text
 
 
 def test_lower_ascend_gemm_emits_l1_copy_gemm_barrier():
@@ -171,9 +177,10 @@ def test_examples_lower_cuda():
         out = lower(k)
         assert out.errors() == [], out.findings
         assert out.family == "cuda"
-        assert "@triton.jit" in out.text
-        assert out.cuda_text
-        assert "__global__" in out.cuda_text
+        assert out.compiler_ver == "0.1.1"
+        assert "__global__" in out.text
+        assert out.triton_text and "@triton.jit" in out.triton_text
+        assert out.cuda_text == out.text
 
 
 def test_cuda_cpp_consumes_smem_barrier_mma_isa():
@@ -198,22 +205,44 @@ def test_cuda_cpp_pipeline_stages_shared():
     assert "[3]" in text or "_stage" in text
 
 
-def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
-    from choreoir.lower import materialize
+def test_cuda_cpp_writeback_gmem():
+    from choreoir.print_cuda import print_cuda
 
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    text = print_cuda(k)
+    assert "float* Cg" in text or "float* Cg /*" in text
+    assert "Cg[" in text
+    assert "role=store" in text
+    assert "cC" in text
+
+
+def test_ascend_gmem_signature_and_store():
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    k.target = "ascend-a2"
+    out = lower(k)
+    assert out.errors() == []
+    assert "Cg: T.Buffer" in out.text
+    assert "T.copy(C, Cg)" in out.text
+    assert "L0C->GM" in out.text
+
+
+def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
     k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
     out = materialize(k, tmp_path, emit="cubin")
     assert not out.errors()
     assert (tmp_path / "gemm_tile.cu").is_file()
-    assert "nvcc missing" in " ".join(f.msg for f in out.findings)
-    assert out.artifact_kind == "source"
+    assert (tmp_path / "gemm_tile.triton.py").is_file()
+    msgs = " ".join(f.msg for f in out.findings)
+    if out.artifact_kind != "cubin":
+        assert "nvcc missing" in msgs or "nvcc failed" in msgs
+        assert out.artifact_kind == "source"
     assert (tmp_path / "manifest.json").is_file()
+    man = json.loads((tmp_path / "manifest.json").read_text())
+    assert man["compiler_ver"] == "0.1.1"
     assert out.source_sha256
 
 
 def test_materialize_npu_bin_without_tilelang(tmp_path):
-    from choreoir.lower import materialize
-
     k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
     k.target = "ascend-a2"
     out = materialize(k, tmp_path, emit="npu-bin")
@@ -222,3 +251,13 @@ def test_materialize_npu_bin_without_tilelang(tmp_path):
         f.msg for f in out.findings
     )
     assert (tmp_path / "gemm_tile.npu.py").is_file()
+
+
+@pytest.mark.skipif(find_nvcc() is None, reason="nvcc not installed (stand-in writes .cu only)")
+def test_materialize_cubin_with_nvcc_is_elf(tmp_path):
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    out = materialize(k, tmp_path, emit="cubin")
+    assert not out.errors(), out.findings
+    assert out.artifact_kind == "cubin"
+    data = Path(out.artifact_path).read_bytes()
+    assert data[:4] == b"\x7fELF"

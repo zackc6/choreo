@@ -102,7 +102,7 @@ Only one is a Lintel object.
 
 Gray zone that stays T5, not M3: extra Finding rules / cost cal loaded from a **versioned bundle** whose hash is in `%k`. `check` stays a pure function. No LLM in `check`. Year-1 still routes that through git on `main` (safer replay; slower than Cake’s in-job harness).
 
-Until the Undergo loop has a real fail corpus, “not fixed” is a **process claim**. Two allowlisted kernels are a weak T5 corpus.
+Until the Undergo loop has a real fail corpus, “not fixed” is a **process claim**. Two allowlisted kernels plus `examples/fails/` (localized `{where}`) are the year-1 T5-lite corpus.
 
 ## Union is of admit signals, not languages
 
@@ -118,7 +118,7 @@ A compiler object here has to (1) take warp/core roles, barriers, pipeline depth
 
 `choreoir.lower` is admit-gated. `Kernel.target` is required (`cuda` / `cuda-sm*` / `ascend*`). Year-1 allowlist: `copy`, `gemm_tile`.
 
-**Stand-in (today, not the L5 design):** NVIDIA Triton knobs + CUDA C++ walk; Ascend TileLang-Ascend. Printers must consume `Partition`, `Barrier`, `Pipeline.depth`, layout, and space. `materialize(..., emit='cubin'|'npu-bin')` may try a device toolchain when present; missing toolchain is a warning, not a fake binary.
+**Stand-in (today, not the L5 design):** NVIDIA CUDA C++ walk is `lower().text` (cubin-bound); Triton knobs are the M2 sidecar. Ascend TileLang-Ascend with GM args. Printers must consume `Partition`, `Barrier`, `Pipeline.depth`, layout, space, and gmem writeback. `materialize(..., emit='cubin'|'npu-bin')` may try a device toolchain when present; missing toolchain is a warning, not a fake binary.
 
 **Later design:** the actual cubin / NPU-bin path (how schedule becomes loadable GPU/NPU objects). Until that lands, M2 `@triton.v0` knobs are the GPU stand-in, not a secret second SKU.
 

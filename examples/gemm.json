@@ -1,8 +1,10 @@
 {
   "name": "gemm_tile",
+  "compiler_ver": "0.1.1",
   "params": [
     {"name": "Ag", "dtype": "f16", "shape": [2, 2]},
-    {"name": "Bg", "dtype": "f16", "shape": [2, 2]}
+    {"name": "Bg", "dtype": "f16", "shape": [2, 2]},
+    {"name": "Cg", "dtype": "f32", "shape": [2, 2]}
   ],
   "buffers": [
     {
@@ -34,18 +36,27 @@
       "space": "regs",
       "dtype": "f32",
       "layout": {"shape": [2, 2], "stride": [2, 1]}
+    },
+    {
+      "name": "Cg",
+      "space": "gmem",
+      "dtype": "f32",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
     }
   ],
   "partitions": [
     {"name": "load", "role": "load", "width": 4},
-    {"name": "math", "role": "math", "width": 4}
+    {"name": "math", "role": "math", "width": 4},
+    {"name": "store", "role": "store", "width": 4}
   ],
   "body": [
     {"op": "copy", "id": "cA", "src": "Ag", "dst": "As", "partition": "load"},
     {"op": "copy", "id": "cB", "src": "Bg", "dst": "Bs", "partition": "load"},
     {"op": "barrier", "id": "b0", "wait_for": ["load"], "arrive": "math"},
     {"op": "mma", "id": "m0", "a": "As", "b": "Bs", "c": "C", "partition": "math"},
-    {"op": "yield", "id": "y0", "values": ["C"]}
+    {"op": "barrier", "id": "b1", "wait_for": ["math"], "arrive": "store"},
+    {"op": "copy", "id": "cC", "src": "C", "dst": "Cg", "partition": "store"},
+    {"op": "yield", "id": "y0", "values": ["Cg"]}
   ],
   "attrs": {"tile": "2x2"},
   "target": "cuda"

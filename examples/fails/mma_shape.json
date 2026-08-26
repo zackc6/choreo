@@ -1,0 +1,29 @@
+{
+  "name": "gemm_tile",
+  "compiler_ver": "0.1.1",
+  "target": "cuda",
+  "buffers": [
+    {
+      "name": "A",
+      "space": "smem",
+      "dtype": "f16",
+      "layout": {"shape": [8, 4], "stride": [4, 1]}
+    },
+    {
+      "name": "B",
+      "space": "smem",
+      "dtype": "f16",
+      "layout": {"shape": [8, 8], "stride": [8, 1]}
+    },
+    {
+      "name": "C",
+      "space": "regs",
+      "dtype": "f32",
+      "layout": {"shape": [8, 8], "stride": [8, 1]}
+    }
+  ],
+  "partitions": [{"name": "math", "role": "math", "width": 1}],
+  "body": [
+    {"op": "mma", "id": "m0", "a": "A", "b": "B", "c": "C", "partition": "math"}
+  ]
+}

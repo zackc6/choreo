@@ -1,0 +1,23 @@
+{
+  "name": "copy",
+  "compiler_ver": "0.1.1",
+  "target": "cuda",
+  "buffers": [
+    {
+      "name": "A",
+      "space": "gmem",
+      "dtype": "f16",
+      "layout": {"shape": [8, 8], "stride": [1, 1]}
+    },
+    {
+      "name": "S",
+      "space": "smem",
+      "dtype": "f16",
+      "layout": {"shape": [8, 8], "stride": [1, 1]}
+    }
+  ],
+  "partitions": [{"name": "load", "role": "load", "width": 1}],
+  "body": [
+    {"op": "copy", "id": "c0", "src": "A", "dst": "S", "partition": "load"}
+  ]
+}

@@ -50,7 +50,7 @@ Forbidden (in this IR, forever):
 | **S** sync | Every cross-partition `Copy`/`Mma` has a dominating `Barrier`; no cyclic wait | `{node, partition?, msg}` |
 | **V** value-sim | Interpreter on a tiny concrete shape matches a reference `numpy` kernel | `{node, index?, expected, got}` |
 
-v1 implements W fully, L for static shapes, S for barrier pairing, V for `Copy`, `Mma`, and `Reduce` on CPU. SMT (Argus Z3) is v2: same finding schema, heavier solver.
+v1 implements W fully (including role/space: gmem→onchip wants `load`, onchip→gmem wants `store`, MMA/Reduce want `math`; `generic` is the escape), L for static shapes, S for barrier pairing (localized to arriving `partition` + `thread=0` first lane), V for `Copy`, `Mma`, and `Reduce` on CPU. SMT (Argus Z3) is v2: same finding schema, heavier solver.
 
 These gates are **T2-color signals**, not serving oracles (T6). Passing V does not mean SGLang A/B.
 
@@ -61,11 +61,11 @@ This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kern
 | Family | `Kernel.target` | Sink | Consumes |
 |---|---|---|---|
 | CPU interpreter | (any) | `simulate` | Copy / Mma / Reduce values |
-| NVIDIA GPU (M2 source) | `cuda`, `cuda-sm*` | Triton (`print_triton`) | layouts → `BLOCK_*`, partitions → `num_warps`, `Pipeline.depth` → `num_stages`, `Barrier` → `tl.debug_barrier` |
-| NVIDIA GPU (stand-in) | `cuda`, `cuda-sm*` | CUDA C++ (`print_cuda`); `nvcc` when present | smem → `__shared__`, Copy → gmem loads, Barrier → `__syncthreads`, Pipeline → staged smem, Mma ISA *name* from target. Not the designed cubin ISA. |
-| Ascend NPU | `ascend*` | TileLang (`print_ascend`) + CANN when present | spaces → GM/L1/L0C/UB, `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined` |
+| NVIDIA GPU (M2 sidecar) | `cuda`, `cuda-sm*` | Triton (`print_triton`) | layouts → `BLOCK_*`, partitions → `num_warps`, `Pipeline.depth` → `num_stages`, `Barrier` → `tl.debug_barrier`. Kill switch if cubin never lands. |
+| NVIDIA GPU (cubin-bound stand-in) | `cuda`, `cuda-sm*` | CUDA C++ (`print_cuda`); `nvcc` when present | smem → `__shared__`, Copy → gmem↔onchip loops, Barrier → `__syncthreads`, Pipeline → staged smem, Mma ISA *name* from target. `lower().text` is this source. Not the designed cubin ISA. |
+| Ascend NPU | `ascend*` | TileLang (`print_ascend`) + CANN when present | GM args + spaces → GM/L1/L0C/UB, `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined` |
 
-`materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes stand-in source and may try a device toolchain. Missing `nvcc` / TileLang is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile`. Do not glue NVIDIA and Ascend spaces into one enum. Do not treat the stand-in as the designed L5 path.
+`materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes the cubin-bound stand-in (`.cu` / `.npu.py`) plus the Triton M2 sidecar, and may try a device toolchain. Missing `nvcc` / TileLang is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile` — both write results back to gmem (load / math / store partitions). Do not glue NVIDIA and Ascend spaces into one enum. Do not treat the stand-in as the designed L5 path.
 
 Choreo **storage layout** is an explicit contract for admit and for the sinks (cheap `shape × stride`). Work partitioning lives in `Partition` + `Layout`.
 

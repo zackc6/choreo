@@ -27,9 +27,12 @@ def test_cli_sim_gemm_expected(capsys):
     assert json.loads(capsys.readouterr().out) == []
 
 
-def test_cli_print_triton(capsys):
+def test_cli_print_cuda(capsys):
     assert main(["print", str(ROOT / "examples" / "copy.json")]) == 0
-    assert "@triton.jit" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "__global__" in out
+    assert "__shared__" in out
+    assert "role=store" in out
 
 
 def test_cli_print_ascend(capsys):
@@ -37,6 +40,7 @@ def test_cli_print_ascend(capsys):
     out = capsys.readouterr().out
     assert "T.gemm" in out
     assert "alloc_L1" in out
+    assert "Cg: T.Buffer" in out
 
 
 def test_cli_print_refuses_without_target(tmp_path, capsys):

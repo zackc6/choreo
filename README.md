@@ -61,7 +61,7 @@ A **checkable IR**, not a kernel-agent product.
 1. **AST** — kernel, buffers, layouts, partitions (roles), ops (`Copy`, `Mma`, `Reduce`, `Barrier`, `Pipeline`, `Yield`).
 2. **Admit W/L/S/V** — wellformed, layout legality, sync/race, tiny-tile value sim — returning *localized* findings (program point, optional thread/element), not scraped compiler stdout.
 3. **CPU interpreter** — so admit does not require a GPU (TIRx-style sim).
-4. **Lower** — admit-gated `lower()` to NVIDIA GPU and Ascend NPU stand-in printers. Year-1 allowlist: `copy`, `gemm_tile`. Cubin / NPU-bin ISA is later design; printers must still consume the schedule.
+4. **Lower** — admit-gated `lower()` to NVIDIA GPU and Ascend NPU stand-in printers. Year-1 allowlist: `copy`, `gemm_tile` (both write gmem). Cubin / NPU-bin ISA is later design; `lower().text` is CUDA C++ / TileLang. Triton is the M2 sidecar. Printers must still consume the schedule.
 
 v2 (still data plane): plugin lowers to Gluon/TLX/TileLang/HIP; optional Z3 on layout tags.
 v3 (other repo): an agent that mutates Choreo IR and consumes finding JSON.
@@ -105,7 +105,7 @@ k = Kernel(
 )
 assert check(k) == []
 gpu = lower(k)
-assert gpu.family == "cuda" and "@triton.jit" in gpu.text
+assert gpu.family == "cuda" and "__global__" in gpu.text
 k.target = "ascend-a2"
 npu = lower(k)
 assert npu.family == "ascend" and "T.copy" in npu.text
@@ -131,7 +131,7 @@ Findings are JSON-serializable (`Finding.as_dict`) so a later agent can consume 
 
 ```text
 choreoir/     AST + checkers + interpreter + NV/Ascend sinks + JSON FFI
-examples/     copy and GEMM-tile kernels as JSON
+examples/     copy and GEMM-tile kernels as JSON (gmem writeback); fails/ T5 corpus
 tests/        wellformed / layout / sync / sim / printer / CLI
 docs/SPEC.md  grammar and admit rules
 goals/        co-design goals (Lintel control plane / Choreo data plane)

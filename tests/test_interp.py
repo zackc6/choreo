@@ -19,6 +19,24 @@ def test_simulate_copy_identity():
     assert store["S"] is not src
 
 
+def test_simulate_copy_gmem_writeback():
+    a = Buffer("A", "gmem", Layout((2, 2), (2, 1)), "f16")
+    s = Buffer("S", "smem", Layout((2, 2), (2, 1)), "f16")
+    b = Buffer("B", "gmem", Layout((2, 2), (2, 1)), "f16")
+    k = Kernel(
+        "copy",
+        buffers=(a, s, b),
+        partitions=(Partition("load", "load", 1), Partition("store", "store", 1)),
+        body=(
+            Copy("c0", "A", "S", "load"),
+            Barrier("b0", ("load",), "store"),
+            Copy("c1", "S", "B", "store"),
+        ),
+    )
+    src = [[1.0, 2.0], [3.0, 4.0]]
+    assert check_value(k, {"A": src}, {"B": src}) == []
+
+
 def test_simulate_mma_and_value_gate():
     a = Buffer("A", "smem", Layout((2, 2), (2, 1)), "f16")
     b = Buffer("B", "smem", Layout((2, 2), (2, 1)), "f16")

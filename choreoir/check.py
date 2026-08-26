@@ -95,16 +95,19 @@ def _wellformed(k: Kernel) -> list[Finding]:
                 used_bufs.add(buf)
                 if k.buffer(buf) is None:
                     f.append(Finding("W", "error", node, f"unknown buffer {buf!r}"))
+            f.extend(_role_space_copy(k, op))
         elif isinstance(op, Mma):
             for buf in (op.a, op.b, op.c):
                 used_bufs.add(buf)
                 if k.buffer(buf) is None:
                     f.append(Finding("W", "error", node, f"unknown buffer {buf!r}"))
+            f.extend(_role_space_math(k, op.partition, node, "mma"))
         elif isinstance(op, Reduce):
             for buf in (op.src, op.dst):
                 used_bufs.add(buf)
                 if k.buffer(buf) is None:
                     f.append(Finding("W", "error", node, f"unknown buffer {buf!r}"))
+            f.extend(_role_space_math(k, op.partition, node, "reduce"))
         elif isinstance(op, Barrier):
             if k.partition(op.arrive) is None:
                 f.append(Finding("W", "error", node, f"unknown arrive partition {op.arrive!r}"))
@@ -132,6 +135,50 @@ def _wellformed(k: Kernel) -> list[Finding]:
                 Finding("W", "error", f"partition.{p.name}", "partition never used", partition=p.name)
             )
     return f
+
+
+def _role_space_copy(k: Kernel, op: Copy) -> list[Finding]:
+    """Copy gmem→onchip wants load; onchip→gmem wants store. generic is the escape."""
+    part = k.partition(op.partition)
+    src, dst = k.buffer(op.src), k.buffer(op.dst)
+    if part is None or src is None or dst is None or part.role == "generic":
+        return []
+    if src.space == "gmem" and dst.space != "gmem" and part.role != "load":
+        return [
+            Finding(
+                "W",
+                "error",
+                op.id,
+                f"copy {src.space}->{dst.space} wants load role, got {part.role}",
+                partition=op.partition,
+            )
+        ]
+    if dst.space == "gmem" and src.space != "gmem" and part.role != "store":
+        return [
+            Finding(
+                "W",
+                "error",
+                op.id,
+                f"copy {src.space}->{dst.space} wants store role, got {part.role}",
+                partition=op.partition,
+            )
+        ]
+    return []
+
+
+def _role_space_math(k: Kernel, partition: str, node: str, kind: str) -> list[Finding]:
+    part = k.partition(partition)
+    if part is None or part.role in ("math", "generic"):
+        return []
+    return [
+        Finding(
+            "W",
+            "error",
+            node,
+            f"{kind} wants math role, got {part.role}",
+            partition=partition,
+        )
+    ]
 
 
 def _layout_ok(layout: Layout) -> str | None:
@@ -260,6 +307,7 @@ def _sync(k: Kernel) -> list[Finding]:
                     node,
                     f"{kind} reads {buf} from partition {src_part} without barrier",
                     partition=part,
+                    thread=0,  # first lane of arriver; year-1 has no work-partition
                 )
             )
 

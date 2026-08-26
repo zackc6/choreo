@@ -66,6 +66,10 @@ def test_cross_partition_copy_needs_barrier():
     )
     fs = check(k)
     assert any(f.gate == "S" for f in fs)
+    race = next(f for f in fs if f.gate == "S")
+    assert race.thread == 0
+    assert race.partition == "math"
+    assert race.as_dict()["where"] == "S"
 
     k2 = Kernel(
         "ok",
@@ -178,3 +182,26 @@ def test_layout_span_localizes_last_element():
     cover = [f for f in fs if f.gate == "L" and "cover" in f.msg]
     assert cover
     assert cover[0].element == (7, 7)
+
+
+def test_role_space_writeback_wants_store():
+    a = Buffer("A", "gmem", Layout((2, 2), (2, 1)), "f16")
+    s = Buffer("S", "smem", Layout((2, 2), (2, 1)), "f16")
+    b = Buffer("B", "gmem", Layout((2, 2), (2, 1)), "f16")
+    k = Kernel(
+        "copy",
+        buffers=(a, s, b),
+        partitions=(
+            Partition("load", "load", 1),
+            Partition("math", "math", 1),
+        ),
+        body=(
+            Copy("c0", "A", "S", "load"),
+            Barrier("b0", wait_for=("load",), arrive="math"),
+            Copy("c1", "S", "B", "math"),
+        ),
+    )
+    fs = check(k)
+    role = [f for f in fs if f.gate == "W" and "store role" in f.msg]
+    assert role and role[0].node == "c1"
+    assert role[0].partition == "math"

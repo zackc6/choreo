@@ -20,17 +20,22 @@ def print_ascend(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     """
     facts = facts or facts_from_kernel(kernel)
     fn = ident(kernel.name)
+    gmem = [b for b in kernel.buffers if b.space == "gmem"]
+    sig = ", ".join(
+        f"{b.name}: T.Buffer({list(b.layout.shape)}, {_DTYPE.get(b.dtype, 'float16')!r})"
+        for b in gmem
+    )
     lines: list[str] = [
         f"# Choreo IR → Ascend NPU (TileLang)  |  kernel {kernel.name!r}  target={kernel.target!r}",
         f"# knobs: {facts.as_dict()}",
         "# space: gmem→GM, smem→L1, tmem→L0C, regs→UB (mma C → L0C)",
-        "# role: load→MTE T.copy, math→Cube T.gemm",
+        "# role: load→MTE T.copy, math→Cube T.gemm, store→MTE T.copy to GM",
         "# Not an NPU bin. Device compile is CANN/TileLang outside this pin.",
         "",
         "import tilelang.language as T",
         "",
         "@T.prim_func",
-        f"def {fn}():",
+        f"def {fn}({sig}):",
         "    with T.Kernel(1, is_npu=True):",
     ]
     for b in kernel.buffers:
@@ -63,6 +68,13 @@ def _npu_alloc(buf: Buffer, kernel: Kernel) -> str:
     return "alloc_ub"
 
 
+def _space_label(buf: Buffer, kernel: Kernel) -> str:
+    if buf.space == "gmem":
+        return "GM"
+    kind = _npu_alloc(buf, kernel)
+    return {"alloc_L0C": "L0C", "alloc_L1": "L1", "alloc_ub": "UB"}.get(kind, buf.space)
+
+
 def _walk(ops: tuple[object, ...] | list[object]) -> list[object]:
     out: list[object] = []
     for op in ops:
@@ -88,8 +100,12 @@ def _emit_ops(
         elif isinstance(op, Copy):
             part = kernel.partition(op.partition)
             role = part.role if part else "load"
+            src_b, dst_b = kernel.buffer(op.src), kernel.buffer(op.dst)
+            src_sp = _space_label(src_b, kernel) if src_b else "?"
+            dst_sp = _space_label(dst_b, kernel) if dst_b else "?"
             lines.append(
-                f"{indent}T.copy({op.src}, {op.dst})  # {op.id} MTE @{op.partition} role={role}"
+                f"{indent}T.copy({op.src}, {op.dst})  # {op.id} {src_sp}->{dst_sp} "
+                f"MTE @{op.partition} role={role}"
             )
         elif isinstance(op, Mma):
             part = kernel.partition(op.partition)

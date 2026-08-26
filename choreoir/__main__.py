@@ -26,7 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--tensors", type=Path, required=True)
     s.add_argument("--expected", type=Path, default=None)
 
-    t = sub.add_parser("print", help="admit-gated source (Triton / TileLang) to stdout")
+    t = sub.add_parser("print", help="admit-gated source (CUDA C++ / TileLang) to stdout")
     t.add_argument("kernel", type=Path)
     t.add_argument(
         "--target",
@@ -42,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
         "--emit",
         choices=("source", "cubin", "npu-bin"),
         default="source",
-        help="source=Triton/TileLang+CUDA C++; cubin=nvcc; npu-bin=TileLang/CANN",
+        help="source=CUDA C++ or TileLang (+ Triton M2 sidecar); cubin=nvcc; npu-bin=TileLang/CANN",
     )
 
     d = sub.add_parser("dump", help="round-trip kernel JSON to stdout")

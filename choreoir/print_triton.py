@@ -27,11 +27,14 @@ def print_triton(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
 
     copies = [op for op in flatten_ops(kernel.body) if isinstance(op, Copy)]
     mmas = [op for op in flatten_ops(kernel.body) if isinstance(op, Mma)]
+    src, dst = _gmem_endpoints(kernel, copies)
 
     if mmas:
-        lines.extend(_gemm_kernel(kernel, mmas[0], facts))
+        lines.extend(_gemm_kernel(kernel, mmas[0], facts, dst))
+    elif copies and src and dst:
+        lines.extend(_copy_kernel(kernel, copies[0], facts, src, dst))
     elif copies:
-        lines.extend(_copy_kernel(kernel, copies[0], facts))
+        lines.extend(_copy_kernel(kernel, copies[0], facts, copies[0].src, copies[0].dst))
     else:
         lines.append(f"# no Copy/Mma in {kernel.name}; nothing to lower")
 
@@ -55,15 +58,39 @@ def _op_comment(op: object) -> str:
     return type(op).__name__
 
 
-def _copy_kernel(kernel: Kernel, op: Copy, facts: ScheduleFacts) -> list[str]:
-    src = kernel.buffer(op.src)
+def _gmem_endpoints(kernel: Kernel, copies: list[Copy]) -> tuple[str | None, str | None]:
+    """M2 copy/gemm IO is gmem endpoints (yielded outputs), not the smem tile."""
+    del copies
+    yielded: list[str] = []
+    for op in flatten_ops(kernel.body):
+        if isinstance(op, Yield):
+            yielded.extend(op.values)
+    gmem_out = [
+        n
+        for n in yielded
+        if (b := kernel.buffer(n)) is not None and b.space == "gmem"
+    ]
+    gmem_in = [
+        b.name
+        for b in kernel.buffers
+        if b.space == "gmem" and b.name not in set(gmem_out)
+    ]
+    src = gmem_in[0] if gmem_in else None
+    dst = gmem_out[0] if gmem_out else None
+    return src, dst
+
+
+def _copy_kernel(
+    kernel: Kernel, op: Copy, facts: ScheduleFacts, src_name: str, dst_name: str
+) -> list[str]:
+    src = kernel.buffer(src_name) or kernel.buffer(op.src)
     n = src.layout.numel() if src else 0
     fn = ident(kernel.name)
     return [
         f"@triton.jit",
         f"def {fn}(src_ptr, dst_ptr, n, BLOCK: tl.constexpr = {facts.block}):",
-        f"    # numel from layout of {op.src}: {n}; Copy {op.id} {op.src}->{op.dst}",
-        f"    # launch knob num_warps={facts.num_warps}",
+        f"    # numel from layout of {src_name}: {n}; first Copy {op.id} {op.src}->{op.dst}",
+        f"    # M2 IO {src_name} -> {dst_name}; launch knob num_warps={facts.num_warps}",
         "    pid = tl.program_id(0)",
         "    offs = pid * BLOCK + tl.arange(0, BLOCK)",
         "    mask = offs < n",
@@ -72,7 +99,9 @@ def _copy_kernel(kernel: Kernel, op: Copy, facts: ScheduleFacts) -> list[str]:
     ]
 
 
-def _gemm_kernel(kernel: Kernel, op: Mma, facts: ScheduleFacts) -> list[str]:
+def _gemm_kernel(
+    kernel: Kernel, op: Mma, facts: ScheduleFacts, out_name: str | None
+) -> list[str]:
     fn = ident(kernel.name)
     stages = facts.num_stages
     barrier_line = (
@@ -90,7 +119,7 @@ def _gemm_kernel(kernel: Kernel, op: Mma, facts: ScheduleFacts) -> list[str]:
         ),
         (
             f"    # tile from Choreo layouts: M={facts.block_m} K={facts.block_k} N={facts.block_n}; "
-            f"Mma {op.id}; launch num_warps={facts.num_warps}"
+            f"Mma {op.id}; store {out_name or op.c}; launch num_warps={facts.num_warps}"
         ),
         "    pid_m = tl.program_id(0)",
         "    pid_n = tl.program_id(1)",

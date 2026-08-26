@@ -58,7 +58,7 @@ From arXiv:2608.12629 §1–4, three pieces; **only (3) is a Lintel object**:
 
 Year-1: evolve **gates + sinks**, not vocabulary.
 
-- Allowed without spec bump: deeper W/L/S/V, cost estimate as a pure function, sinks that actually consume `Barrier` / `Pipeline.depth` / layout / space / partition.
+- Allowed without spec bump: deeper W/L/S/V (role/space, `{where}` fill), cost estimate as a pure function, sinks that actually consume `Barrier` / `Pipeline.depth` / layout / space / partition / gmem writeback.
 - Spec bump required: new op, space, role, or memory enum. Same day: a check that admits it **and** a sink that lowers it. Syntax without effects is forbidden.
 - Never here: serving \(F\), freeze, land/revert, “agents write the compiler” as a runtime feature.
 
@@ -68,10 +68,11 @@ This compiler object **always** lowers to both families. The **path is assumed**
 
 `choreoir.lower` is admit-gated (`check` errors refuse codegen). Named `Kernel.target` selects the family (`cuda` / `cuda-sm*` → NVIDIA; `ascend*` → Ascend). Year-1 SLA allowlists `copy` and `gemm_tile`.
 
-Stand-in printers **must consume** partition widths, `Pipeline.depth`, layouts (`BLOCK_*`), `Barrier`, and memory spaces — not comments-only:
+Stand-in printers **must consume** partition widths, `Pipeline.depth`, layouts (`BLOCK_*`), `Barrier`, memory spaces, and gmem writeback — not comments-only:
 
-- **NVIDIA M2 / stand-in:** Triton knobs (`print_triton`) + CUDA C++ walk (`print_cuda`). `materialize(..., emit='cubin')` may run `nvcc` when present; otherwise a warning and source only.
-- **Ascend stand-in:** TileLang-Ascend. `emit='npu-bin'` may try CANN/TileLang; otherwise a warning and the `.npu.py` only.
+- **NVIDIA cubin-bound stand-in:** CUDA C++ walk (`print_cuda`) is `lower().text`. `materialize(..., emit='cubin')` may run `nvcc` when present; otherwise a warning and `.cu` only.
+- **NVIDIA M2 sidecar:** Triton knobs (`print_triton`, written as `*.triton.py`). Kill switch if the designed cubin never lands.
+- **Ascend stand-in:** TileLang-Ascend with GM function args. `emit='npu-bin'` may try CANN/TileLang; otherwise a warning and the `.npu.py` only.
 
 Do not unify NVIDIA smem and Ascend L1 into one `onchip` enum. Do not add a second live face. Do not mutate PTX. Device toolchains stay sinks we print *into*.
 
@@ -87,7 +88,7 @@ Two SKUs, two sinks, **one** Finding schema. Not one averaged dialect. Lowering 
 
 ## Year-1 cardinality and M2
 
-Allowlist two complete kernels. Payload is kind 1; the deal is kind 2. Do not grow ops to look like Cake IR.
+Allowlist two complete kernels (gmem writeback via `store`). Payload is kind 1; the deal is kind 2. Do not grow ops to look like Cake IR.
 
 Until the later cubin / NPU-bin design lands, **M2** on the GPU sink is `@triton.v0` knobs (`num_warps`, `BLOCK_*`, `num_stages`) derived from the AST. That is the stand-in, not a secret second SKU. It does not retire the Ascend sink. If kind 2 wins the GPU SKU, the NVIDIA mutation surface **shrinks to knobs**.
 

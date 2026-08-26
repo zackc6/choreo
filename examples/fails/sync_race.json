@@ -1,10 +1,7 @@
 {
   "name": "copy",
   "compiler_ver": "0.1.1",
-  "params": [
-    {"name": "A", "dtype": "f16", "shape": [2, 2]},
-    {"name": "B", "dtype": "f16", "shape": [2, 2]}
-  ],
+  "target": "cuda",
   "buffers": [
     {
       "name": "A",
@@ -31,10 +28,6 @@
   ],
   "body": [
     {"op": "copy", "id": "c0", "src": "A", "dst": "S", "partition": "load"},
-    {"op": "barrier", "id": "b0", "wait_for": ["load"], "arrive": "store"},
-    {"op": "copy", "id": "c1", "src": "S", "dst": "B", "partition": "store"},
-    {"op": "yield", "id": "y0", "values": ["B"]}
-  ],
-  "attrs": {},
-  "target": "cuda"
+    {"op": "copy", "id": "c1", "src": "S", "dst": "B", "partition": "store"}
+  ]
 }
