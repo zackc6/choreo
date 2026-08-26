@@ -10,6 +10,9 @@ Choreo is the data-plane **compiler object**. Lintel is the control plane. Union
 python3 -m choreoir check examples/copy.json
 python3 -m choreoir propose examples/copy.json
 python3 -m choreoir propose examples/fails/layout_cover.json   # reject.where = L
+python3 -m choreoir check examples/fails/value_mismatch.json \
+  --tensors examples/fails/value_mismatch.tensors.json \
+  --expected examples/fails/value_mismatch.expected.json   # where = V
 python3 -m choreoir lower examples/gemm.json -o /tmp/out --emit cubin
 python3 -m choreoir pin /tmp/out/pin.json
 python3 -m choreoir lower examples/gemm.json -o /tmp/npu --target ascend-a2 --emit npu-bin
@@ -22,6 +25,7 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 - [`examples/copy.proposal.json`](../examples/copy.proposal.json) / [`examples/gemm.proposal.json`](../examples/gemm.proposal.json)
 - [`examples/copy.pin.json`](../examples/copy.pin.json) / [`examples/gemm.pin.json`](../examples/gemm.pin.json)
 - [`examples/fails/layout_cover.proposal.json`](../examples/fails/layout_cover.proposal.json) — `{where: L}`
+- T5-lite `{where}` corpus: [`examples/fails/`](../examples/fails/) — W (`unknown_buffer`, `role_mismatch`, `pipeline_depth`), L (`layout_cover`, `mma_shape`), S (`sync_race`), V (`value_mismatch` + tensors). `choreo propose` runs W/L/S only; V is `--tensors --expected`.
 
 ## `%k` (`cache-key.v0`)
 
