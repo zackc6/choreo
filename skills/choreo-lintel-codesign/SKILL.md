@@ -72,7 +72,8 @@ Stand-in printers **must consume** partition widths, `Pipeline.depth`, layouts (
 
 - **NVIDIA cubin-bound stand-in:** CUDA C++ walk (`print_cuda`) is `lower().text`. `materialize(..., emit='cubin')` runs official `nvcc -cubin` when present (discovers `~/.local/cuda-nvcc`, `CUDA_HOME`, `CHOREO_NVCC`); otherwise a warning and `.cu` only. Manifest pins `artifact_sha256` of the ELF.
 - **NVIDIA M2 sidecar:** Triton knobs (`print_triton`, written as `*.triton.py`). Kill switch if the designed cubin never lands.
-- **Ascend stand-in:** TileLang-Ascend with GM function args. `emit='npu-bin'` loads the generated prim_func and calls `tilelang.compile` when TileLang **and** CANN/bisheng are present; otherwise a warning and the `.npu.py` only.
+- **Ascend NPU-bin-bound stand-in:** CCE walk (`print_ascendc`) is `lower().text`. `materialize(..., emit='npu-bin')` runs official `ccec --cce-aicore-only -c` when present (discovers `~/.local/ascend/pkg/bisheng_compiler`, `CCE_HOME`, `CHOREO_CCEC`); otherwise a warning and `.cce` only. Manifest pins `artifact_sha256` of the elf64-hiipu ELF. Not a homemade Davinci object.
+- **Ascend sidecar:** TileLang-Ascend (`print_ascend`, written as `*.npu.py`). Parallel to Triton; not what `npu-bin` compiles.
 
 Do not unify NVIDIA smem and Ascend L1 into one `onchip` enum. Do not add a second live face. Do not mutate PTX. Device toolchains stay sinks we print *into*.
 

@@ -118,7 +118,7 @@ A compiler object here has to (1) take warp/core roles, barriers, pipeline depth
 
 `choreoir.lower` is admit-gated. `Kernel.target` is required (`cuda` / `cuda-sm*` / `ascend*`). Year-1 allowlist: `copy`, `gemm_tile`.
 
-**Stand-in (today, not the L5 design):** NVIDIA CUDA C++ walk is `lower().text` (cubin-bound); Triton knobs are the M2 sidecar. Ascend TileLang-Ascend with GM args. Printers must consume `Partition`, `Barrier`, `Pipeline.depth`, layout, space, and gmem writeback. `materialize(..., emit='cubin'|'npu-bin')` runs official `nvcc` / TileLang+CANN when present and pins `artifact_sha256`; missing toolchain is a warning, not a fake binary. `pin.json` (`as_k`) is the `%k` **payload** Lintel freezes; this tree does not freeze.
+**Stand-in (today, not the L5 design):** NVIDIA CUDA C++ walk is `lower().text` (cubin-bound); Triton knobs are the M2 sidecar. Ascend CCE walk is `lower().text` (NPU-bin-bound); TileLang-Ascend is the sidecar. Printers must consume `Partition`, `Barrier`, `Pipeline.depth`, layout, space, and gmem writeback. `materialize(..., emit='cubin'|'npu-bin')` runs official `nvcc` / `ccec` when present and pins `artifact_sha256`; missing toolchain is a warning, not a fake binary. `pin.json` (`as_k`) is the `%k` **payload** Lintel freezes; this tree does not freeze.
 
 **Later design:** the actual cubin / NPU-bin path (how schedule becomes loadable GPU/NPU objects). Until that lands, M2 `@triton.v0` knobs are the GPU stand-in, not a secret second SKU.
 
@@ -132,13 +132,13 @@ Do both as **required sink families**. Do not unify them in the AST. Spaces and 
 Lintel     workload contract, admit, F, freeze, evidence → gate | cal | tactic
 Choreo     closed JSON AST + target field; cheap shape×stride; {where}
 Sinks      not live faces; L5 designed later
-  gpu    → cubin    (stand-in: Triton / CUDA C++)
-  ascend → NPU bin  (stand-in: TileLang-Ascend)
+  gpu    → cubin    (stand-in: CUDA C++ + nvcc; Triton sidecar)
+  ascend → NPU bin  (stand-in: CCE + ccec; TileLang sidecar)
 ```
 
 Vendor DSLs are sinks to print *into*, not second live faces. Two printers and no \(F\) is the compiler-company trap. \(F\) lives in Lintel.
 
-Cake is NVIDIA-only. “Better than Cake on Ascend” is vacuous. The Ascend bar is TileLang-Ascend / Ascend C.
+Cake is NVIDIA-only. “Better than Cake on Ascend” is vacuous. The Ascend bar is official `ccec` / Ascend C (TileLang-Ascend remains a sidecar).
 
 ## Year-1 cardinality and M2
 

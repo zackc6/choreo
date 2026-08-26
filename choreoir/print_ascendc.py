@@ -1,0 +1,200 @@
+"""Ascend CCE sink — the NPU-bin-bound path. Walks Copy/Barrier/Mma/Pipeline.
+
+Official `ccec --cce-aicore-only -c` turns this into an elf64-hiipu relocatable
+when the toolchain is present. Not a homemade Davinci object. Not L5 ISA.
+Onchip buffers are UB pointer stand-ins (like CUDA mapping every dtype to float):
+default DAV_M100 aicore-only objects accept GM↔UB copies, not L1/cube mad.
+Choreo spaces stay in comments (smem→L1, mma C→L0C). TileLang is the sidecar.
+"""
+
+from __future__ import annotations
+
+from .ast import Barrier, Buffer, Copy, Kernel, Mma, Pipeline, Reduce, Yield
+from .knobs import ScheduleFacts, facts_from_kernel, ident
+
+# Stand-in C type so ccec can assemble without half/bfloat headers. Real dtype
+# is kept in comments. Burst lengths use this width (32B units).
+_C_DTYPE = "float"
+_ELEM_BYTES = 4
+_ALIGN = 256
+
+
+def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
+    """Emit CCE that consumes the Choreo schedule.
+
+    gmem → __gm__, Copy → copy_gm_to_ubuf / copy_ubuf_to_gm (burst from layout),
+    Barrier → pipe_barrier(PIPE_ALL), Pipeline.depth → staged loop, Mma → named
+    cube.mmad plus M/N/K from layouts (cube mad is later L5 / cube-capable arch).
+    """
+    facts = facts or facts_from_kernel(kernel)
+    fn = ident(kernel.name)
+    gmem = [b for b in kernel.buffers if b.space == "gmem"]
+    args = ", ".join(
+        f"const __gm__ {_C_DTYPE}* {b.name} /* {b.dtype} */"
+        if _is_readonly(b, kernel)
+        else f"__gm__ {_C_DTYPE}* {b.name} /* {b.dtype} */"
+        for b in gmem
+    )
+    if not args:
+        args = "void"
+    bases = _onchip_bases(kernel)
+    lines = [
+        f"// Choreo IR → Ascend NPU-bin path  |  kernel {kernel.name!r}  target={kernel.target!r}",
+        f"// isa={facts.isa} arch={facts.arch} num_warps={facts.num_warps} num_stages={facts.num_stages}",
+        "// spaces: gmem→__gm__, smem→L1 (UB stand-in), tmem/mma C→L0C (UB stand-in), else UB",
+        "// dtypes lowered as float stand-in so ccec needs no half headers (not L5 ISA)",
+        "",
+        f'extern "C" __global__ __aicore__ void {fn}({args}) {{',
+    ]
+    for b in kernel.buffers:
+        if b.space == "gmem":
+            continue
+        base = bases[b.name]
+        label = _space_label(b, kernel)
+        lines.append(
+            f"  __ubuf__ {_C_DTYPE}* {b.name} = (__ubuf__ {_C_DTYPE}*){base};"
+            f"  // Choreo space={b.space} → {label} stand-in UB base {base}"
+            f"  dtype={b.dtype} numel={b.layout.numel()}"
+        )
+    lines.extend(_emit_ops(kernel.body, "  ", kernel, facts, bases))
+    lines.append("}")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def _is_readonly(buf: Buffer, kernel: Kernel) -> bool:
+    for op in _walk(kernel.body):
+        if isinstance(op, Copy) and op.dst == buf.name:
+            return False
+        if isinstance(op, Mma) and op.c == buf.name:
+            return False
+        if isinstance(op, Reduce) and op.dst == buf.name:
+            return False
+    return True
+
+
+def _onchip_bases(kernel: Kernel) -> dict[str, int]:
+    bases: dict[str, int] = {}
+    off = 0
+    for buf in kernel.buffers:
+        if buf.space == "gmem":
+            continue
+        bases[buf.name] = off
+        nbytes = max(buf.layout.numel() * _ELEM_BYTES, 32)
+        off += ((nbytes + _ALIGN - 1) // _ALIGN) * _ALIGN
+    return bases
+
+
+def _space_label(buf: Buffer, kernel: Kernel) -> str:
+    if buf.space == "gmem":
+        return "GM"
+    mma_cs = {op.c for op in _walk(kernel.body) if isinstance(op, Mma)}
+    if buf.name in mma_cs or buf.space == "tmem":
+        return "L0C"
+    if buf.space == "smem":
+        return "L1"
+    return "UB"
+
+
+def _walk(ops: tuple[object, ...] | list[object]) -> list[object]:
+    out: list[object] = []
+    for op in ops:
+        out.append(op)
+        if isinstance(op, Pipeline):
+            out.extend(_walk(op.body))
+    return out
+
+
+def _len_burst(buf: Buffer) -> int:
+    nbytes = buf.layout.numel() * _ELEM_BYTES
+    return max(1, (nbytes + 31) // 32)
+
+
+def _emit_ops(
+    ops: tuple[object, ...] | list[object],
+    indent: str,
+    kernel: Kernel,
+    facts: ScheduleFacts,
+    bases: dict[str, int],
+) -> list[str]:
+    lines: list[str] = []
+    for op in ops:
+        if isinstance(op, Pipeline):
+            lines.append(f"{indent}// pipeline {op.id} depth={op.depth}")
+            lines.append(f"{indent}for (int _stage = 0; _stage < {op.depth}; ++_stage) {{")
+            lines.extend(_emit_ops(op.body, indent + "  ", kernel, facts, bases))
+            lines.append(f"{indent}}}")
+        elif isinstance(op, Copy):
+            lines.extend(_emit_copy(op, indent, kernel))
+        elif isinstance(op, Barrier):
+            waits = ",".join(op.wait_for)
+            part = kernel.partition(op.arrive)
+            role = part.role if part else "?"
+            lines.append(
+                f"{indent}pipe_barrier(PIPE_ALL);  // {op.id} wait {waits} "
+                f"arrive {op.arrive} role={role}"
+            )
+        elif isinstance(op, Mma):
+            lines.extend(_emit_mma(op, indent, kernel, facts))
+        elif isinstance(op, Reduce):
+            lines.append(
+                f"{indent}// reduce {op.id} axis={op.axis} (not lowered in v0.1 cce sink)"
+            )
+        elif isinstance(op, Yield):
+            lines.append(f"{indent}// yield {op.id}: {','.join(op.values)}")
+    return lines
+
+
+def _emit_copy(op: Copy, indent: str, kernel: Kernel) -> list[str]:
+    src, dst = kernel.buffer(op.src), kernel.buffer(op.dst)
+    if src is None or dst is None:
+        return [f"{indent}// copy {op.id} missing buffer"]
+    part = kernel.partition(op.partition)
+    role = part.role if part else "?"
+    src_sp = _space_label(src, kernel)
+    dst_sp = _space_label(dst, kernel)
+    burst = _len_burst(dst)
+    note = (
+        f"{indent}// copy {op.id} {op.src}({src.space}/{src_sp})->"
+        f"{op.dst}({dst.space}/{dst_sp}) @{op.partition} role={role} "
+        f"nBurst=1 lenBurst={burst} (32B)"
+    )
+    src_g = src.space == "gmem"
+    dst_g = dst.space == "gmem"
+    if src_g and not dst_g:
+        call = (
+            f"{indent}copy_gm_to_ubuf((__ubuf__ void*){dst.name}, (__gm__ void*){src.name}, "
+            f"0, 1, {burst}, 0, 0);"
+        )
+    elif dst_g and not src_g:
+        call = (
+            f"{indent}copy_ubuf_to_gm((__gm__ void*){dst.name}, (__ubuf__ void*){src.name}, "
+            f"0, 1, {burst}, 0, 0);"
+        )
+    elif not src_g and not dst_g:
+        call = (
+            f"{indent}copy_ubuf_to_ubuf((__ubuf__ void*){dst.name}, (__ubuf__ void*){src.name}, "
+            f"0, 1, {burst}, 0, 0);"
+        )
+    else:
+        return [note, f"{indent}// gmem→gmem copy not lowered in v0.1 cce sink"]
+    return [note, call]
+
+
+def _emit_mma(op: Mma, indent: str, kernel: Kernel, facts: ScheduleFacts) -> list[str]:
+    a, b, c = kernel.buffer(op.a), kernel.buffer(op.b), kernel.buffer(op.c)
+    part = kernel.partition(op.partition)
+    role = part.role if part else "?"
+    if not (a and b and c) or len(a.layout.shape) != 2:
+        return [f"{indent}// mma {op.id} shape error"]
+    m, k = a.layout.shape
+    n = b.layout.shape[1] if len(b.layout.shape) == 2 else 1
+    a_sp = _space_label(a, kernel)
+    b_sp = _space_label(b, kernel)
+    c_sp = _space_label(c, kernel)
+    return [
+        f"{indent}// mma {op.id} {op.c} += {op.a}@{op.b}  isa={facts.isa} "
+        f"M={m} K={k} N={n} @{op.partition} role={role} "
+        f"{a_sp}@{b_sp}->{c_sp}",
+        f"{indent}// cube mad needs later L5 / cube-capable arch; schedule consumed above",
+    ]

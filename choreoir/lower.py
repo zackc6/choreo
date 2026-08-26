@@ -12,19 +12,22 @@ from .ast import Kernel
 from .check import Finding, check
 from .knobs import YEAR1_KERNELS, ScheduleFacts, facts_from_kernel, ident, target_family
 from .print_ascend import print_ascend
+from .print_ascendc import print_ascendc
 from .print_cuda import print_cuda
 from .print_triton import print_triton
-from .toolchain import find_cann, find_nvcc, nvcc_include_dir
+from .toolchain import ccec_env, find_ccec, find_nvcc, nvcc_include_dir
 
 
-def adapter_id(family: str, artifact_kind: str) -> str:
+def adapter_id(family: str, artifact_kind: str, toolchain: str = "") -> str:
     """Sink id Lintel freezes in %k. Not a second live face."""
     if artifact_kind == "cubin":
         return "nvcc.cubin"
     if artifact_kind == "npu-bin":
-        return "tilelang.cann"
+        if "tilelang" in toolchain and "ccec" not in toolchain:
+            return "tilelang.cann"
+        return "ccec.aicore"
     if family == "ascend":
-        return "tilelang.ascend"
+        return "ascendc.cce"
     return "cuda.cxx"
 
 
@@ -43,6 +46,7 @@ class Lowered:
     artifact_sha256: str = ""
     toolchain: str = ""
     kernel_name: str = ""
+    tilelang_text: str = ""
 
     def errors(self) -> list[Finding]:
         return [f for f in self.findings if f.severity == "error"]
@@ -58,7 +62,7 @@ class Lowered:
             "source_sha256": self.source_sha256,
             "artifact_sha256": self.artifact_sha256 or None,
             "artifact_kind": self.artifact_kind,
-            "adapter_id": adapter_id(self.family, self.artifact_kind),
+            "adapter_id": adapter_id(self.family, self.artifact_kind, self.toolchain),
             "graph_hash": None,
         }
 
@@ -72,7 +76,7 @@ class Lowered:
             "artifact_sha256": self.artifact_sha256,
             "compiler_ver": self.compiler_ver,
             "toolchain": self.toolchain,
-            "adapter_id": adapter_id(self.family, self.artifact_kind),
+            "adapter_id": adapter_id(self.family, self.artifact_kind, self.toolchain),
             "k": self.as_k(),
             "facts": self.facts.as_dict() if self.facts else None,
             "findings": [f.as_dict() for f in self.findings],
@@ -82,7 +86,8 @@ class Lowered:
 def lower(kernel: Kernel, *, sla: bool = True) -> Lowered:
     """Lower a checked kernel to NVIDIA or Ascend *source* (year-1 stand-in).
 
-    L5 cubin / NPU-bin ISA is later design. CUDA family also fills `cuda_text`.
+    L5 cubin / NPU-bin ISA is later design. CUDA family fills `cuda_text`;
+    Ascend fills CCE as `text` and TileLang as `tilelang_text`.
     Device binaries need `materialize(..., emit='cubin'|'npu-bin')` and a toolchain.
     """
     findings = list(check(kernel))
@@ -115,8 +120,10 @@ def lower(kernel: Kernel, *, sla: bool = True) -> Lowered:
     facts = facts_from_kernel(kernel)
     cuda_text = ""
     triton_text = ""
+    tilelang_text = ""
     if family == "ascend":
-        text = print_ascend(kernel, facts)
+        text = print_ascendc(kernel, facts)
+        tilelang_text = print_ascend(kernel, facts)
     else:
         cuda_text = print_cuda(kernel, facts)
         triton_text = print_triton(kernel, facts)
@@ -134,6 +141,7 @@ def lower(kernel: Kernel, *, sla: bool = True) -> Lowered:
         triton_text,
         kernel.compiler_ver,
         kernel_name=kernel.name,
+        tilelang_text=tilelang_text,
     )
 
 
@@ -146,7 +154,7 @@ def materialize(
 ) -> Lowered:
     """Write sink source and, if emit is cubin/npu-bin, try the device toolchain.
 
-    Missing nvcc / TileLang is a *warning* finding, not a silent success.
+    Missing nvcc / ccec is a *warning* finding, not a silent success.
     Lintel freeze/%k can pin source_sha256 even when the bin is absent.
     """
     result = lower(kernel, sla=sla)
@@ -161,10 +169,12 @@ def materialize(
     artifact_sha256 = ""
     toolchain = ""
 
-    src_path = out_dir / f"{name}.{'npu.py' if result.family == 'ascend' else 'cu'}"
+    src_path = out_dir / f"{name}.{'cce' if result.family == 'ascend' else 'cu'}"
     src_path.write_text(result.text)
     if result.triton_text:
         (out_dir / f"{name}.triton.py").write_text(result.triton_text)
+    if result.tilelang_text:
+        (out_dir / f"{name}.npu.py").write_text(result.tilelang_text)
     if result.cuda_text and result.family == "cuda" and src_path.suffix != ".cu":
         (out_dir / f"{name}.cu").write_text(result.cuda_text)
 
@@ -198,15 +208,16 @@ def materialize(
                 )
             )
             return _with_findings(result, findings)
-        extra, bin_path, tool = _try_npu_bin(src_path, out_dir / f"{name}.npu.bin", name)
+        dest = out_dir / f"{name}.npu.bin"
+        extra, ok, ccec_path = _try_ccec(src_path, dest)
         findings.extend(extra)
-        if bin_path:
-            artifact_kind, artifact_path = "npu-bin", bin_path
-            artifact_sha256 = _sha256_file(Path(bin_path))
-            toolchain = tool
+        if ok:
+            artifact_kind, artifact_path = "npu-bin", str(dest)
+            artifact_sha256 = _sha256_file(dest)
+            toolchain = ccec_path or "ccec"
         else:
             artifact_path = str(src_path)
-            toolchain = tool or "cann-missing"
+            toolchain = ccec_path or "ccec-missing"
     else:
         artifact_path = str(src_path)
 
@@ -223,7 +234,8 @@ def materialize(
         result.compiler_ver,
         artifact_sha256,
         toolchain,
-        kernel_name=result.kernel_name,
+        result.kernel_name,
+        result.tilelang_text,
     )
     (out_dir / "manifest.json").write_text(json.dumps(out.as_manifest(), indent=2) + "\n")
     (out_dir / "pin.json").write_text(json.dumps(out.as_k(), indent=2) + "\n")
@@ -244,7 +256,8 @@ def _with_findings(result: Lowered, findings: list[Finding]) -> Lowered:
         result.compiler_ver,
         result.artifact_sha256,
         result.toolchain,
-        kernel_name=result.kernel_name,
+        result.kernel_name,
+        result.tilelang_text,
     )
 
 
@@ -289,74 +302,54 @@ def _try_nvcc(cu: Path, cubin: Path, arch: str) -> tuple[list[Finding], bool, st
     return [], True, nvcc
 
 
-def _try_npu_bin(src: Path, dest: Path, name: str) -> tuple[list[Finding], str | None, str]:
-    try:
-        __import__("tilelang")
-    except ImportError:
+def _try_ccec(src: Path, dest: Path) -> tuple[list[Finding], bool, str]:
+    ccec = find_ccec()
+    if ccec is None:
         return (
             [
                 Finding(
                     "W",
                     "warning",
                     "kernel",
-                    f"tilelang/CANN missing; wrote {src.name} (NPU-bin sink, no binary)",
+                    f"ccec missing; wrote {src.name} (NPU-bin sink, no binary)",
                 )
             ],
-            None,
+            False,
             "",
         )
-    cann = find_cann()
-    if cann is None:
+    cmd = [ccec, "--cce-aicore-only", "-c", "-o", str(dest), str(src)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False, env=ccec_env(ccec))
+    if proc.returncode != 0 or not dest.is_file():
+        err = (proc.stderr or proc.stdout or "").strip()[:400]
         return (
             [
                 Finding(
                     "W",
                     "warning",
                     "kernel",
-                    f"CANN/bisheng missing; wrote {src.name} (NPU-bin sink, no binary)",
+                    f"ccec failed ({proc.returncode}): {err}",
                 )
             ],
-            None,
-            "tilelang",
+            False,
+            ccec,
         )
-    try:
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location("_choreo_npu_kernel", src)
-        if spec is None or spec.loader is None:
-            raise RuntimeError(f"cannot load {src}")
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        fn = getattr(mod, name, None)
-        if fn is None:
-            raise RuntimeError(f"no prim_func {name!r} in {src.name}")
-        import tilelang
-
-        compiled = tilelang.compile(fn, target="npuir")
-        lib_path = None
-        for attr in ("lib_path", "path", "artifact_path"):
-            lib_path = getattr(compiled, attr, None)
-            if lib_path:
-                break
-        if not lib_path:
-            raise RuntimeError(f"tilelang.compile returned {type(compiled)!r} with no library path")
-        src_lib = Path(str(lib_path))
-        dest.write_bytes(src_lib.read_bytes())
-        return [], str(dest), f"tilelang+{cann}"
-    except Exception as exc:
+    magic = dest.read_bytes()[:4]
+    if magic != b"\x7fELF":
+        dest.unlink(missing_ok=True)
         return (
             [
                 Finding(
                     "W",
                     "warning",
                     "kernel",
-                    f"tilelang/CANN compile failed: {str(exc)[:400]}",
+                    "ccec wrote a non-ELF object; refusing to pin a fake NPU bin",
                 )
             ],
-            None,
-            f"tilelang+{cann}",
+            False,
+            ccec,
         )
+    return [], True, ccec
 
 
 # find_nvcc re-exported for tests / CLI
-__all__ = ["Lowered", "adapter_id", "find_nvcc", "lower", "materialize"]
+__all__ = ["Lowered", "adapter_id", "find_ccec", "find_nvcc", "lower", "materialize"]

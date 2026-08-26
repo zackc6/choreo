@@ -16,7 +16,7 @@ from choreoir.ast import (
 )
 from choreoir.check import check
 from choreoir.jsonio import kernel_from_dict
-from choreoir.lower import find_nvcc, lower, materialize
+from choreoir.lower import find_ccec, find_nvcc, lower, materialize
 from choreoir.print_triton import print_triton
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -111,21 +111,27 @@ def test_lower_ascend_gemm_emits_l1_copy_gemm_barrier():
     out = lower(k)
     assert out.errors() == []
     assert out.family == "ascend"
-    assert "tilelang.language" in out.text
-    assert "alloc_L1" in out.text
-    assert "alloc_L0C" in out.text
-    assert "T.copy(Ag, As)" in out.text
-    assert "T.gemm(As, Bs, C)" in out.text
-    assert "T.pipe_barrier" in out.text
-    assert "T.Scope('C')" in out.text
+    assert "__global__ __aicore__" in out.text
+    assert "copy_gm_to_ubuf" in out.text
+    assert "pipe_barrier(PIPE_ALL)" in out.text
+    assert "cube.mmad" in out.text
+    assert "space=smem → L1" in out.text
+    assert "T.gemm(As, Bs, C)" in out.tilelang_text
+    assert "alloc_L1" in out.tilelang_text
+    assert "alloc_L0C" in out.tilelang_text
+    assert "T.pipe_barrier" in out.tilelang_text
+    assert "T.Scope('C')" in out.tilelang_text
     assert "@triton.jit" not in out.text
+    assert "tilelang.language" not in out.text
 
 
 def test_lower_ascend_pipeline_depth():
     k = _gemm_k(pipeline_depth=3, target="ascend-a2")
     out = lower(k)
     assert out.errors() == []
-    assert "T.Pipelined(1, num_stages=3)" in out.text
+    assert "depth=3" in out.text
+    assert "for (int _stage = 0; _stage < 3; ++_stage)" in out.text
+    assert "T.Pipelined(1, num_stages=3)" in out.tilelang_text
 
 
 def test_lower_requires_named_target():
@@ -185,7 +191,7 @@ def test_examples_lower_cuda():
         out = lower(k)
         assert out.errors() == [], out.findings
         assert out.family == "cuda"
-        assert out.compiler_ver == "0.1.3"
+        assert out.compiler_ver == "0.1.4"
         assert "__global__" in out.text
         assert out.triton_text and "@triton.jit" in out.triton_text
         assert out.cuda_text == out.text
@@ -229,9 +235,31 @@ def test_ascend_gmem_signature_and_store():
     k.target = "ascend-a2"
     out = lower(k)
     assert out.errors() == []
-    assert "Cg: T.Buffer" in out.text
-    assert "T.copy(C, Cg)" in out.text
-    assert "L0C->GM" in out.text
+    assert "__gm__ float* Cg" in out.text or "__gm__ float* Cg /*" in out.text
+    assert "copy_ubuf_to_gm" in out.text
+    assert "L0C" in out.text
+    assert "role=store" in out.text
+    assert "Cg: T.Buffer" in out.tilelang_text
+    assert "T.copy(C, Cg)" in out.tilelang_text
+    assert "L0C->GM" in out.tilelang_text
+
+
+def test_materialize_npu_bin_writes_cce_and_sidecar(tmp_path):
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    k.target = "ascend-a2"
+    out = materialize(k, tmp_path, emit="npu-bin")
+    assert not out.errors()
+    assert (tmp_path / "gemm_tile.cce").is_file()
+    assert (tmp_path / "gemm_tile.npu.py").is_file()
+    assert "tilelang.language" in (tmp_path / "gemm_tile.npu.py").read_text()
+    msgs = " ".join(f.msg for f in out.findings)
+    if out.artifact_kind != "npu-bin":
+        assert "ccec missing" in msgs or "ccec failed" in msgs
+        assert out.artifact_kind == "source"
+    pin = json.loads((tmp_path / "pin.json").read_text())
+    assert pin["kernel"] == "gemm_tile"
+    assert pin["compiler_ver"] == "0.1.4"
+    assert pin["source_sha256"] == out.source_sha256
 
 
 def test_materialize_writes_pin_for_lintel_k(tmp_path):
@@ -239,7 +267,7 @@ def test_materialize_writes_pin_for_lintel_k(tmp_path):
     out = materialize(k, tmp_path, emit="source")
     pin = json.loads((tmp_path / "pin.json").read_text())
     assert pin["kernel"] == "gemm_tile"
-    assert pin["compiler_ver"] == "0.1.3"
+    assert pin["compiler_ver"] == "0.1.4"
     assert pin["source_sha256"] == out.source_sha256
     assert pin["adapter_id"] == "cuda.cxx"
     assert pin["graph_hash"] is None
@@ -258,19 +286,24 @@ def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
         assert out.artifact_kind == "source"
     assert (tmp_path / "manifest.json").is_file()
     man = json.loads((tmp_path / "manifest.json").read_text())
-    assert man["compiler_ver"] == "0.1.3"
+    assert man["compiler_ver"] == "0.1.4"
     assert out.source_sha256
 
 
-def test_materialize_npu_bin_without_tilelang(tmp_path):
+def test_materialize_npu_bin_without_ccec_writes_cce(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHOREO_CCEC", "")
     k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
     k.target = "ascend-a2"
     out = materialize(k, tmp_path, emit="npu-bin")
     assert not out.errors()
-    assert "tilelang" in " ".join(f.msg for f in out.findings).lower() or "CANN" in " ".join(
-        f.msg for f in out.findings
-    )
+    assert out.artifact_kind == "source"
+    assert "ccec missing" in " ".join(f.msg for f in out.findings)
+    assert (tmp_path / "gemm_tile.cce").is_file()
     assert (tmp_path / "gemm_tile.npu.py").is_file()
+    pin = json.loads((tmp_path / "pin.json").read_text())
+    assert pin["adapter_id"] == "ascendc.cce"
+    assert pin["artifact_kind"] == "source"
+    assert pin["artifact_sha256"] is None
 
 
 @pytest.mark.skipif(find_nvcc() is None, reason="nvcc not installed (stand-in writes .cu only)")
@@ -297,4 +330,59 @@ def test_materialize_cubin_with_nvcc_is_elf(tmp_path):
     assert pin["artifact_kind"] == "cubin"
     assert pin["artifact_sha256"] == out.artifact_sha256
     assert pin["graph_hash"] is None
-    assert pin["compiler_ver"] == "0.1.3"
+    assert pin["compiler_ver"] == "0.1.4"
+
+
+def test_find_ccec_discovers_local_bisheng():
+    ccec = find_ccec()
+    if ccec is None:
+        pytest.skip("ccec not installed")
+    assert Path(ccec).name == "ccec"
+    assert Path(ccec).is_file()
+
+
+def test_print_ascendc_consumes_copy_barrier_mma_pipeline():
+    from choreoir.print_ascendc import print_ascendc
+
+    k = _gemm_k(pipeline_depth=3, target="ascend-a2")
+    text = print_ascendc(k)
+    assert "__global__ __aicore__" in text
+    assert "copy_gm_to_ubuf" in text
+    assert "pipe_barrier(PIPE_ALL)" in text
+    assert "depth=3" in text
+    assert "_stage" in text
+    assert "cube.mmad" in text
+    assert "role=math" in text
+    assert "space=smem → L1" in text
+
+
+@pytest.mark.skipif(find_ccec() is None, reason="ccec not installed (stand-in writes .cce only)")
+def test_materialize_npu_bin_with_ccec_is_elf(tmp_path):
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    k.target = "ascend-a2"
+    out = materialize(k, tmp_path, emit="npu-bin")
+    assert not out.errors(), out.findings
+    assert out.artifact_kind == "npu-bin", out.findings
+    data = Path(out.artifact_path).read_bytes()
+    assert data[:4] == b"\x7fELF"
+    assert out.artifact_sha256 == hashlib.sha256(data).hexdigest()
+    assert "ccec" in out.toolchain
+    man = json.loads((tmp_path / "manifest.json").read_text())
+    assert man["artifact_kind"] == "npu-bin"
+    assert man["artifact_sha256"] == out.artifact_sha256
+    ck = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    ck.target = "ascend-a2"
+    cout = materialize(ck, tmp_path / "copy", emit="npu-bin")
+    assert cout.artifact_kind == "npu-bin", cout.findings
+    assert Path(cout.artifact_path).read_bytes()[:4] == b"\x7fELF"
+    pin = json.loads((tmp_path / "pin.json").read_text())
+    assert pin["kernel"] == "gemm_tile"
+    assert pin["adapter_id"] == "ccec.aicore"
+    assert pin["artifact_kind"] == "npu-bin"
+    assert pin["artifact_sha256"] == out.artifact_sha256
+    assert pin["graph_hash"] is None
+    assert pin["compiler_ver"] == "0.1.4"
+    assert pin["family"] == "ascend"
+    assert (tmp_path / "gemm_tile.cce").is_file()
+    assert (tmp_path / "gemm_tile.npu.py").is_file()
+

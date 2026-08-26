@@ -72,9 +72,11 @@ def test_cli_print_cuda(capsys):
 def test_cli_print_ascend(capsys):
     assert main(["print", str(ROOT / "examples" / "gemm.json"), "--target", "ascend-a2"]) == 0
     out = capsys.readouterr().out
-    assert "T.gemm" in out
-    assert "alloc_L1" in out
-    assert "Cg: T.Buffer" in out
+    assert "__aicore__" in out
+    assert "copy_gm_to_ubuf" in out
+    assert "pipe_barrier(PIPE_ALL)" in out
+    assert "cube.mmad" in out
+    assert "T.gemm" not in out
 
 
 def test_cli_print_refuses_without_target(tmp_path, capsys):
@@ -101,5 +103,33 @@ def test_cli_lower_cubin_manifest(tmp_path, capsys):
         assert "nvcc" in man["toolchain"]
         assert man["k"]["adapter_id"] == "nvcc.cubin"
         assert (tmp_path / "pin.json").is_file()
+        pin = json.loads((tmp_path / "pin.json").read_text())
+        assert pin == man["k"]
+
+
+def test_cli_lower_npu_bin_manifest(tmp_path, capsys):
+    rc = main(
+        [
+            "lower",
+            str(ROOT / "examples" / "gemm.json"),
+            "-o",
+            str(tmp_path),
+            "--target",
+            "ascend-a2",
+            "--emit",
+            "npu-bin",
+        ]
+    )
+    assert rc == 0
+    man = json.loads(capsys.readouterr().out)
+    assert man["family"] == "ascend"
+    assert (tmp_path / "gemm_tile.cce").is_file()
+    assert (tmp_path / "gemm_tile.npu.py").is_file()
+    assert man["source_sha256"]
+    if man["artifact_kind"] == "npu-bin":
+        assert Path(man["artifact_path"]).read_bytes()[:4] == b"\x7fELF"
+        assert man["artifact_sha256"]
+        assert "ccec" in man["toolchain"]
+        assert man["k"]["adapter_id"] == "ccec.aicore"
         pin = json.loads((tmp_path / "pin.json").read_text())
         assert pin == man["k"]

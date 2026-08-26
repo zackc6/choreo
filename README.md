@@ -33,7 +33,7 @@ The living AI-compiler survey’s **LLM-oriented IR** is the agent-visible *face
 
 Cake, Argus, and TIRx are evidence for **admit mechanisms** (typed schedule, localized `{where}`, cheap pre-device filter), not a license to glue those languages into one dialect. Cake hides layout; Argus makes layout algebra the spec. Choreo picks a third cell: cheap `shape × stride` so `{where: L}` can fire. No year-1 Z3. No CuTe work-partition.
 
-Lintel owns Cake’s *harness loop* (arXiv:2608.12629 §3–4) as **control-plane IR**. Choreo is the compiler object the agent edits. Year-1 printers (`print_triton`, `print_ascend`, `print_cuda`) are the **stand-in** L5 path and must consume the schedule. The cubin / NPU-bin ISA is designed later. See [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
+Lintel owns Cake’s *harness loop* (arXiv:2608.12629 §3–4) as **control-plane IR**. Choreo is the compiler object the agent edits. Year-1 printers (`print_cuda` / `print_ascendc` cubin- and NPU-bin-bound; `print_triton` / `print_ascend` sidecars) are the **stand-in** L5 path and must consume the schedule. The cubin / NPU-bin ISA is designed later. See [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
 
 | Piece | Cake (NVIDIA/CMU) | Argus (CausalFlow et al.) | TIRx (TVM) | Choreo v0.1 |
 |---|---|---|---|---|
@@ -41,7 +41,7 @@ Lintel owns Cake’s *harness loop* (arXiv:2608.12629 §3–4) as **control-plan
 | Layout algebra + compile-time discharge | No | Yes (tags + SMT, thread/element CEX) | Storage contract, not CuTe work-partition | Cheap `shape×stride` only; SMT not in year-1 |
 | FFI construct / inspect / mutate | Harness (not public) | Pythonic DSL | TVM FFI | **Yes** (Python AST is the FFI; JSON too) |
 | Pre-GPU admit | Safety / conformance / schedule gates | Layout SMT | Wellformed / sync / race / value-sim | **W/L/S/V signals** (not serving \(F\)) |
-| Lowering | CUDA/PTX (cubin) | AMD ISA | CUDA C++/PTX | **Required families:** NV GPU and Ascend NPU; year-1 stand-in source; L5 ISA later |
+| Lowering | CUDA/PTX (cubin) | AMD ISA | CUDA C++/PTX | **Required families:** NV GPU and Ascend NPU; year-1 stand-in: CUDA C++ + `nvcc`, CCE + `ccec`; Triton/TileLang sidecars; L5 ISA later |
 | Public tree | No | No | TVM | This repo |
 
 Vendor DSLs (TileLang, Gluon, TLX, CuTe DSL, FlyDSL, ThunderKittens) are **sinks** this IR may lower *into*. They are not the LLM-oriented face. `@tirx.v0` / `@cake.v0` / `@tilelang.ascend` are optional doors, not a second live face.
@@ -61,7 +61,7 @@ A **checkable IR**, not a kernel-agent product.
 1. **AST** — kernel, buffers, layouts, partitions (roles), ops (`Copy`, `Mma`, `Reduce`, `Barrier`, `Pipeline`, `Yield`).
 2. **Admit W/L/S/V** — wellformed, layout legality, sync/race, tiny-tile value sim — returning *localized* findings (program point, optional thread/element), not scraped compiler stdout.
 3. **CPU interpreter** — so admit does not require a GPU (TIRx-style sim).
-4. **Lower** — admit-gated `lower()` to NVIDIA GPU and Ascend NPU stand-in printers. Year-1 allowlist: `copy`, `gemm_tile` (both write gmem). Cubin / NPU-bin ISA is later design; `lower().text` is CUDA C++ / TileLang. Triton is the M2 sidecar. Printers must still consume the schedule.
+4. **Lower** — admit-gated `lower()` to NVIDIA GPU and Ascend NPU stand-in printers. Year-1 allowlist: `copy`, `gemm_tile` (both write gmem). Cubin / NPU-bin ISA is later design; `lower().text` is CUDA C++ / CCE. Triton and TileLang are sidecars. Printers must still consume the schedule.
 
 v2 (still data plane): plugin lowers to Gluon/TLX/TileLang/HIP; optional Z3 on layout tags.
 v3 (other repo): an agent that mutates Choreo IR and consumes finding JSON.
@@ -108,7 +108,8 @@ gpu = lower(k)
 assert gpu.family == "cuda" and "__global__" in gpu.text
 k.target = "ascend-a2"
 npu = lower(k)
-assert npu.family == "ascend" and "T.copy" in npu.text
+assert npu.family == "ascend" and "__aicore__" in npu.text
+assert "T.copy" in npu.tilelang_text
 ```
 
 Findings are JSON-serializable (`Finding.as_dict`) so a later agent can consume them without scraping stdout.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import tarfile
 import tempfile
 import urllib.request
@@ -18,6 +19,7 @@ _CUDART_URL = (
     "cuda_cudart/linux-x86_64/cuda_cudart-linux-x86_64-12.8.90-archive.tar.xz"
 )
 _LOCAL_PREFIX = Path.home() / ".local" / "cuda-nvcc"
+_LOCAL_CCEC = Path.home() / ".local" / "ascend" / "pkg" / "bisheng_compiler"
 
 
 def find_nvcc() -> str | None:
@@ -71,17 +73,97 @@ def find_cann() -> str | None:
     which = shutil.which("bisheng")
     if which:
         return str(Path(which).resolve().parent.parent)
-    for key in ("ASCEND_HOME", "ASCEND_TOOLKIT_HOME", "ASCEND_AICPU_PATH"):
+    ccec = find_ccec()
+    if ccec:
+        return str(Path(ccec).resolve().parent.parent)
+    for key in ("ASCEND_HOME", "ASCEND_TOOLKIT_HOME", "ASCEND_AICPU_PATH", "CCE_HOME"):
         home = os.environ.get(key)
         if home and Path(home).is_dir():
             return home
     for path in (
         Path("/usr/local/Ascend/ascend-toolkit/latest"),
         Path.home() / "Ascend" / "ascend-toolkit" / "latest",
+        _LOCAL_CCEC,
     ):
         if path.is_dir():
             return str(path)
     return None
+
+
+def find_ccec() -> str | None:
+    """Locate official Huawei `ccec`. Missing is a warning, not a fake NPU bin."""
+    candidates: list[str] = []
+    raw = os.environ.get("CHOREO_CCEC")
+    if raw == "":
+        return None
+    if raw:
+        candidates.append(raw)
+    which = shutil.which("ccec")
+    if which:
+        candidates.append(which)
+    for key in ("CCE_HOME", "ASCEND_HOME", "ASCEND_TOOLKIT_HOME", "ASCEND_HOME_PATH"):
+        home = os.environ.get(key)
+        if home:
+            candidates.append(str(Path(home) / "bin" / "ccec"))
+            candidates.append(str(Path(home) / "compiler" / "ccec_compiler" / "bin" / "ccec"))
+            candidates.append(str(Path(home) / "tools" / "ccec_compiler" / "bin" / "ccec"))
+    candidates.extend(
+        (
+            str(_LOCAL_CCEC / "bin" / "ccec"),
+            str(Path.home() / ".local" / "Ascend" / "ascend-toolkit" / "latest" / "compiler" / "ccec_compiler" / "bin" / "ccec"),
+            "/usr/local/Ascend/ascend-toolkit/latest/compiler/ccec_compiler/bin/ccec",
+            "/usr/local/Ascend/latest/compiler/ccec_compiler/bin/ccec",
+        )
+    )
+    local = Path.home() / ".local"
+    if local.is_dir():
+        for path in sorted(local.glob("ascend*/**/bin/ccec")):
+            candidates.append(str(path))
+        for path in sorted(local.glob("Ascend*/**/bin/ccec")):
+            candidates.append(str(path))
+    for path in candidates:
+        if path and Path(path).is_file() and os.access(path, os.X_OK):
+            return path
+    return None
+
+
+def ccec_env(ccec: str) -> dict[str, str]:
+    """Env for a ccec subprocess: CCE_HOME + lib on LD_LIBRARY_PATH."""
+    env = os.environ.copy()
+    home = str(Path(ccec).resolve().parent.parent)
+    env["CCE_HOME"] = home
+    env["PATH"] = str(Path(ccec).resolve().parent) + os.pathsep + env.get("PATH", "")
+    lib = Path(home) / "lib"
+    if lib.is_dir():
+        env["LD_LIBRARY_PATH"] = str(lib) + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+    return env
+
+
+def ensure_ccec() -> str | None:
+    """Discover ccec. Optional extract: CHOREO_BISHENG_RUN=/path/to/*.run.
+
+    Not called from lower(). Does not download; Huawei packages are not a
+    public CUDA-redist mirror. Environment install may point at a local .run.
+    """
+    found = find_ccec()
+    if found:
+        return found
+    run = os.environ.get("CHOREO_BISHENG_RUN")
+    if not run or not Path(run).is_file():
+        return None
+    dest = _LOCAL_CCEC
+    if (dest / "bin" / "ccec").is_file():
+        return str(dest / "bin" / "ccec")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists():
+        return find_ccec()
+    subprocess.run(
+        ["bash", run, "--noexec", f"--extract={dest}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return find_ccec()
 
 
 def ensure_nvcc() -> str | None:

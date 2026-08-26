@@ -1,4 +1,9 @@
-"""Ascend NPU sink (TileLang-shaped). Deterministic. Not an LLM. Not CANN in the pin."""
+"""Ascend NPU sidecar (TileLang-shaped). Deterministic. Not the NPU-bin path.
+
+`print_ascendc` + official `ccec` is the NPU-bin-bound sink (parallel to Triton
+as the NVIDIA M2 sidecar). This printer still consumes the schedule so a
+TileLang+CANN partner can compile it; it is not what `lower().text` emits.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +21,7 @@ def print_ascend(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     Role map: load→MTE copy, math→Cube gemm.
     Pipeline.depth → T.Pipelined(..., num_stages=depth).
     Barrier → T.pipe_barrier after producer copies.
-    Does not emit an NPU bin; does not pin CANN/TileLang.
+    Sidecar only. NPU-bin is `print_ascendc` + `ccec`.
     """
     facts = facts or facts_from_kernel(kernel)
     fn = ident(kernel.name)
