@@ -26,6 +26,13 @@ from .print_cuda import print_cuda
 from .print_triton import print_triton
 from .toolchain import ensure_ccec, ensure_nvcc, find_cann
 
+try:
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("choreoir")
+except Exception:  # pragma: no cover
+    __version__ = "0.1.8"
+
 __all__ = [
     "Barrier",
     "Buffer",
@@ -42,6 +49,7 @@ __all__ = [
     "ScheduleFacts",
     "YEAR1_KERNELS",
     "Yield",
+    "__version__",
     "check",
     "check_value",
     "facts_from_kernel",

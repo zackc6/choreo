@@ -17,6 +17,18 @@ def test_examples_roundtrip_and_admit():
         assert kernel_to_dict(k)["compiler_ver"] == "0.1.8"
 
 
+def test_package_version_matches_kernel_pin():
+    """Q1 pins choreoir by version; setuptools version is the Kernel compiler_ver pin."""
+    from importlib.metadata import version
+
+    import choreoir
+    from choreoir.ast import Kernel
+
+    assert version("choreoir") == "0.1.8"
+    assert choreoir.__version__ == "0.1.8"
+    assert Kernel.__dataclass_fields__["compiler_ver"].default == "0.1.8"
+
+
 def test_compiler_ver_roundtrip_pin():
     raw = __import__("json").loads((ROOT / "examples" / "copy.json").read_text())
     k = kernel_from_dict(raw)

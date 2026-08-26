@@ -33,7 +33,7 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 
 ## `%k` (`cache-key.v0`)
 
-`materialize` writes `pin.json`. `cache_key` is the freeze key (additionalProperties false). `cache_key_digest` is sha256 of canonical JSON of that key (sorted keys, no whitespace) and is the lookup address, not a key field. Kernel AST is the **value at** the key.
+`materialize` writes `pin.json`. `cache_key` is the freeze key (additionalProperties false). `cache_key_digest` is sha256 of canonical JSON of that key (sorted keys, no whitespace) and is the lookup address, not a key field. Kernel AST is the **value at** the key. The installable package version is `0.1.8`, same as `Kernel.compiler_ver`.
 
 | Field | This tree emits | Not |
 |---|---|---|
