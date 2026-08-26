@@ -21,6 +21,7 @@ EXPECT = {
     "role_mismatch.json": ("W", "c1"),
     "mma_shape.json": ("L", "m0"),
     "pipeline_depth.json": ("W", "p0"),
+    "pipeline_empty.json": ("W", "p0"),
 }
 
 V_CASE = (

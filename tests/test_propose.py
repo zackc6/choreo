@@ -16,7 +16,7 @@ def test_pascalcase_ops_roundtrip_to_lowercase():
     raw = {
         "name": "copy",
         "target": "cuda",
-        "compiler_ver": "0.1.7",
+        "compiler_ver": "0.1.8",
         "buffers": [
             {
                 "name": "A",
@@ -55,6 +55,16 @@ def test_propose_admit_ok_has_no_reject():
     assert doc["compiler_ver"].startswith("choreoir==")
     assert doc["hw_id"] == "nvidia.sm_80"
     assert "target" not in doc or doc.get("target") is None
+
+
+def test_propose_empty_pipeline_is_cfg_edge():
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "fails" / "pipeline_empty.json").read_text()))
+    fs = check(k)
+    assert any(f.gate == "W" and "empty" in f.msg for f in fs)
+    doc = adapter_proposal(k)
+    assert doc["reject"]["where"] == "W"
+    assert doc["reject"]["hint"] == "p0"
+    assert "where" not in doc["reject"]["finding"]
 
 
 def test_propose_layout_fail_is_cfg_edge():

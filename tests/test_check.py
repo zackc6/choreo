@@ -1,4 +1,16 @@
-from choreoir.ast import Barrier, Buffer, Copy, Kernel, Layout, Mma, Param, Partition, Reduce, Yield
+from choreoir.ast import (
+    Barrier,
+    Buffer,
+    Copy,
+    Kernel,
+    Layout,
+    Mma,
+    Param,
+    Partition,
+    Pipeline,
+    Reduce,
+    Yield,
+)
 from choreoir.check import check
 
 
@@ -6,6 +18,23 @@ def _bufs():
     a = Buffer("A", "gmem", Layout((8, 8), (8, 1)), "f16")
     s = Buffer("S", "smem", Layout((8, 8), (8, 1)), "f16")
     return a, s
+
+
+def test_empty_pipeline_body_is_wellformed_error():
+    a, s = _bufs()
+    k = Kernel(
+        "copy",
+        buffers=(a, s),
+        partitions=(Partition("load", "load", 1),),
+        body=(
+            Pipeline("p0", 3, ()),
+            Copy("c0", "A", "S", "load"),
+        ),
+    )
+    fs = check(k)
+    empty = [f for f in fs if f.gate == "W" and f.node == "p0" and "empty" in f.msg]
+    assert empty
+    assert empty[0].as_dict()["where"] == "W"
 
 
 def test_copy_kernel_ok():

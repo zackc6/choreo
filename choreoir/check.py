@@ -130,8 +130,18 @@ def _wellformed(k: Kernel) -> list[Finding]:
                     f.append(Finding("W", "error", node, f"unknown wait_for partition {w!r}"))
                 else:
                     used_parts.add(w)
-        elif isinstance(op, Pipeline) and op.depth < 1:
-            f.append(Finding("W", "error", node, "pipeline depth must be >= 1"))
+        elif isinstance(op, Pipeline):
+            if op.depth < 1:
+                f.append(Finding("W", "error", node, "pipeline depth must be >= 1"))
+            if not op.body:
+                f.append(
+                    Finding(
+                        "W",
+                        "error",
+                        node,
+                        "pipeline body empty",
+                    )
+                )
         elif isinstance(op, Yield):
             for buf in op.values:
                 used_bufs.add(buf)

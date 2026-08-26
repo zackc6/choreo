@@ -45,12 +45,12 @@ Forbidden (in this IR, forever):
 
 | Gate | Question | Failure shape |
 |---|---|---|
-| **W** wellformed | Types, ranks, every buffer used, every partition named, no unknown ops | `{node, msg}` |
+| **W** wellformed | Types, ranks, every buffer used, every partition named, no unknown ops, `Pipeline.body` nonempty | `{node, msg}` |
 | **L** layout | `size(layout) == numel(buffer)`; copy src/dst layouts compose; MMA fragments match dtype | `{node, element?, msg}` |
 | **S** sync | Every cross-partition `Copy`/`Mma` has a dominating `Barrier`; no cyclic wait | `{node, partition?, msg}` |
 | **V** value-sim | Interpreter on a tiny concrete shape matches a reference `numpy` kernel | `{node, index?, expected, got}` |
 
-v1 implements W fully (including role/space: gmem→onchip wants `load`, onchip→gmem wants `store`, MMA/Reduce want `math`; `generic` is the escape), L for static shapes, S for barrier pairing (localized to arriving `partition` + `thread=0` first lane), V for `Copy`, `Mma`, and `Reduce` on CPU (`choreo check --tensors --expected` runs W→L→S then V). SMT (Argus Z3) is v2: same finding schema, heavier solver.
+v1 implements W fully (including role/space: gmem→onchip wants `load`, onchip→gmem wants `store`, MMA/Reduce want `math`; `generic` is the escape; `Pipeline.body` must be the staged region — empty body is a W error), L for static shapes, S for barrier pairing (localized to arriving `partition` + `thread=0` first lane), V for `Copy`, `Mma`, and `Reduce` on CPU (`choreo check --tensors --expected` runs W→L→S then V). SMT (Argus Z3) is v2: same finding schema, heavier solver.
 
 These gates are **T2-color signals**, not serving oracles (T6). Passing V does not mean SGLang A/B.
 
@@ -85,7 +85,7 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
 }
 ```
 
-`compiler_ver` on the Kernel JSON is the **choreoir** pin; it is not mutated inside one admit/lower walk. Lintel `%k` (`cache-key.v0`) names **both** that pin and the sink: `choreoir==0.1.7;nvcc.cubin`. `materialize` writes `pin.json` (`Lowered.as_k()`):
+`compiler_ver` on the Kernel JSON is the **choreoir** pin; it is not mutated inside one admit/lower walk. Lintel `%k` (`cache-key.v0`) names **both** that pin and the sink: `choreoir==0.1.8;nvcc.cubin`. `materialize` writes `pin.json` (`Lowered.as_k()`):
 
 ```json
 {
@@ -94,7 +94,7 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
     "schema_version": "cache-key.v0",
     "graph_hash": "sha256:…",
     "hw_id": "nvidia.sm_80",
-    "compiler_ver": "choreoir==0.1.7;nvcc.cubin",
+    "compiler_ver": "choreoir==0.1.8;nvcc.cubin",
     "adapter_id": "choreo.v0",
     "policy_id": "lintel.specialize.v0"
   },
