@@ -108,6 +108,7 @@ A consume absorb is committed locally on lintel `main` but **cannot be pushed** 
 - `ae62bae` same copy Kernel on Ascend is a new %k (ccec.aicore / npu-bin); year-1 live search stays NVIDIA
 - `beab884` consume rows point at choreo `409180a` public nvcc cubin CI; two copy-kernel `%k` without ccec
 - `9971fb1` data-plane PoC notes that choreo public CI fetches nvcc so cubin tests cannot skip
+- `c962329` T5 fail envelopes and session-log kernels pin choreoir 0.1.8 (`choreoir==0.1.8;cuda.cxx`)
 
 Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`.
 
