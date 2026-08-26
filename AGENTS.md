@@ -2,7 +2,7 @@
 
 **Choreo IR** is a typed kernel choreography IR for the data plane — Lintel’s L4 face.
 
-**Not a compiler company** is Lintel’s SKU (control plane), not a skip on codegen. **This tree is the compiler object:** construct, check, simulate, print, and lower to NVIDIA GPU and Ascend NPU. Compiler evolution happens *to* this object. **Lintel IR** is the control-plane IR that conducts that loop.
+**Not a compiler company** is Lintel’s SKU (control plane), not a skip on codegen. **This tree is the compiler object:** construct, check, simulate, print, and lower to NVIDIA GPU and Ascend NPU. Year-1 is Horizon A / M1-lite (L4-only search). L5 is assumed; ISA designed later. Compiler evolution is two clocks (T5 across jobs, never M3 mid-walk). **Lintel IR** conducts that loop.
 
 It is not an orchestrator, MCP server, agent graph, or fitness-\(F\) controller.
 

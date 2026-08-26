@@ -43,10 +43,10 @@ class Lowered:
 
 
 def lower(kernel: Kernel, *, sla: bool = True) -> Lowered:
-    """Lower a checked kernel to NVIDIA or Ascend *source*.
+    """Lower a checked kernel to NVIDIA or Ascend *source* (year-1 stand-in).
 
-    CUDA family also fills `cuda_text` (the cubin-bound C++ sink). Device
-    binaries need `materialize(..., emit='cubin'|'npu-bin')`.
+    L5 cubin / NPU-bin ISA is later design. CUDA family also fills `cuda_text`.
+    Device binaries need `materialize(..., emit='cubin'|'npu-bin')` and a toolchain.
     """
     findings = list(check(kernel))
     family = target_family(kernel.target)

@@ -4,7 +4,7 @@ Typed kernel choreography IR for the data plane — Lintel’s L4 face.
 
 **Not a compiler company** is the SKU, not a skip on codegen. Lintel sells the control plane (admit, freeze, land / revert / reject, serving \(F\)): vendor-neutral, not Cake, not a TVM distro. The demo that fails the product test is still “we compiled Choreo.”
 
-**This tree is the compiler object:** construct, check, simulate, print, and **lower to NVIDIA GPU and Ascend NPU**. Sinks are classical (deterministic functions of the AST). Compiler evolution — deeper gates, sinks that consume the schedule, rare spec bumps — happens *to* this object.
+**This tree is the compiler object:** construct, check, simulate, print, and lower to NVIDIA GPU and Ascend NPU. Year-1 is **Horizon A / M1-lite**: Lintel searches only L4; L5 is classical (path assumed, ISA designed later). Compiler evolution is **two clocks** (T5 across jobs, never mid-walk M3).
 
 **Lintel IR** is the control-plane IR that conducts that loop. It does not rewrite Choreo’s dialect at search time.
 
@@ -25,7 +25,7 @@ The living AI-compiler survey’s **LLM-oriented IR** is the agent-visible *face
 | Translation glue | Out of scope |
 | Control-plane substrate (Auto / FlowCompile / AgentFlow) | **Forbidden here** |
 
-**Home band: L4 (kernel DSL).** That is where kernel agents already train and search (C4). Do not replace StableHLO (L2) or MLIR (L3). Do not invent Event Tensor–class megakernel IR (L6) in v1.
+**Home band: L4 (kernel DSL).** Year-1 search lives here only (Horizon A, job (a)). Do not replace StableHLO (L2) or MLIR (L3). Do not invent Event Tensor–class megakernel IR (L6) in v1. Do not search L5 (ISA). L5 lowering is assumed and designed later.
 
 **Hybrid split (invariant).** This IR is what a searcher may *mutate*. Classical passes own legality, lowering, and measure. LLM output must not silently define executable behavior.
 
@@ -33,7 +33,7 @@ The living AI-compiler survey’s **LLM-oriented IR** is the agent-visible *face
 
 Cake, Argus, and TIRx are evidence for **admit mechanisms** (typed schedule, localized `{where}`, cheap pre-device filter), not a license to glue those languages into one dialect. Cake hides layout; Argus makes layout algebra the spec. Choreo picks a third cell: cheap `shape × stride` so `{where: L}` can fire. No year-1 Z3. No CuTe work-partition.
 
-Lintel owns Cake’s *harness loop* (arXiv:2608.12629 §3–4) as **control-plane IR**. Choreo is the compiler object the agent edits **and** the object that must lower to NVIDIA GPU and Ascend NPU. `print_triton` is the GPU sink (Triton source, knobs from the AST). `print_ascend` is the NPU sink (TileLang-Ascend source). Neither is a cubin/NPU-bin toolchain. See [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
+Lintel owns Cake’s *harness loop* (arXiv:2608.12629 §3–4) as **control-plane IR**. Choreo is the compiler object the agent edits. Year-1 printers (`print_triton`, `print_ascend`, `print_cuda`) are the **stand-in** L5 path and must consume the schedule. The cubin / NPU-bin ISA is designed later. See [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
 
 | Piece | Cake (NVIDIA/CMU) | Argus (CausalFlow et al.) | TIRx (TVM) | Choreo v0.1 |
 |---|---|---|---|---|
@@ -41,7 +41,7 @@ Lintel owns Cake’s *harness loop* (arXiv:2608.12629 §3–4) as **control-plan
 | Layout algebra + compile-time discharge | No | Yes (tags + SMT, thread/element CEX) | Storage contract, not CuTe work-partition | Cheap `shape×stride` only; SMT not in year-1 |
 | FFI construct / inspect / mutate | Harness (not public) | Pythonic DSL | TVM FFI | **Yes** (Python AST is the FFI; JSON too) |
 | Pre-GPU admit | Safety / conformance / schedule gates | Layout SMT | Wellformed / sync / race / value-sim | **W/L/S/V signals** (not serving \(F\)) |
-| Lowering | CUDA/PTX (cubin) | AMD ISA | CUDA C++/PTX | **Required:** NV GPU (Triton source) and Ascend NPU (TileLang source); not a device toolchain |
+| Lowering | CUDA/PTX (cubin) | AMD ISA | CUDA C++/PTX | **Required families:** NV GPU and Ascend NPU; year-1 stand-in source; L5 ISA later |
 | Public tree | No | No | TVM | This repo |
 
 Vendor DSLs (TileLang, Gluon, TLX, CuTe DSL, FlyDSL, ThunderKittens) are **sinks** this IR may lower *into*. They are not the LLM-oriented face. `@tirx.v0` / `@cake.v0` / `@tilelang.ascend` are optional doors, not a second live face.
@@ -61,7 +61,7 @@ A **checkable IR**, not a kernel-agent product.
 1. **AST** — kernel, buffers, layouts, partitions (roles), ops (`Copy`, `Mma`, `Reduce`, `Barrier`, `Pipeline`, `Yield`).
 2. **Admit W/L/S/V** — wellformed, layout legality, sync/race, tiny-tile value sim — returning *localized* findings (program point, optional thread/element), not scraped compiler stdout.
 3. **CPU interpreter** — so admit does not require a GPU (TIRx-style sim).
-4. **Lower** — admit-gated `lower()` to NVIDIA GPU (Triton) and Ascend NPU (TileLang). Year-1 allowlist: `copy`, `gemm_tile`. Source, not cubin / NPU bin.
+4. **Lower** — admit-gated `lower()` to NVIDIA GPU and Ascend NPU stand-in printers. Year-1 allowlist: `copy`, `gemm_tile`. Cubin / NPU-bin ISA is later design; printers must still consume the schedule.
 
 v2 (still data plane): plugin lowers to Gluon/TLX/TileLang/HIP; optional Z3 on layout tags.
 v3 (other repo): an agent that mutates Choreo IR and consumes finding JSON.

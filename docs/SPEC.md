@@ -56,16 +56,16 @@ These gates are **T2-color signals**, not serving oracles (T6). Passing V does n
 
 ## 5. Lowering
 
-This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kernel)` is refused if `check` has `severity=error` or `target` is missing.
+This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kernel)` is refused if `check` has `severity=error` or `target` is missing. **L5 ISA (cubin / NPU bin) is later design.** Year-1 printers are the stand-in and must consume the schedule. Agents do not mutate PTX.
 
 | Family | `Kernel.target` | Sink | Consumes |
 |---|---|---|---|
 | CPU interpreter | (any) | `simulate` | Copy / Mma / Reduce values |
 | NVIDIA GPU (M2 source) | `cuda`, `cuda-sm*` | Triton (`print_triton`) | layouts → `BLOCK_*`, partitions → `num_warps`, `Pipeline.depth` → `num_stages`, `Barrier` → `tl.debug_barrier` |
-| NVIDIA GPU (cubin path) | `cuda`, `cuda-sm*` | CUDA C++ (`print_cuda`) + `nvcc -cubin` | smem → `__shared__`, Copy → gmem loads, Barrier → `__syncthreads`, Pipeline → staged smem, Mma ISA from target (`mma.sync` / `wgmma` / `tcgen05`) |
+| NVIDIA GPU (stand-in) | `cuda`, `cuda-sm*` | CUDA C++ (`print_cuda`); `nvcc` when present | smem → `__shared__`, Copy → gmem loads, Barrier → `__syncthreads`, Pipeline → staged smem, Mma ISA *name* from target. Not the designed cubin ISA. |
 | Ascend NPU | `ascend*` | TileLang (`print_ascend`) + CANN when present | spaces → GM/L1/L0C/UB, `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined` |
 
-`materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes source and tries the device toolchain. Missing `nvcc` / TileLang is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile`. Do not glue NVIDIA and Ascend spaces into one enum.
+`materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes stand-in source and may try a device toolchain. Missing `nvcc` / TileLang is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile`. Do not glue NVIDIA and Ascend spaces into one enum. Do not treat the stand-in as the designed L5 path.
 
 Choreo **storage layout** is an explicit contract for admit and for the sinks (cheap `shape × stride`). Work partitioning lives in `Partition` + `Layout`.
 

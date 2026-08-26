@@ -13,7 +13,7 @@ Read [`goals/lintel-codesign.md`](goals/lintel-codesign.md) for the product cut.
 
 Choreo is a typed kernel choreography IR for the data plane — Lintel’s L4 face.
 
-**Not a compiler company** means Lintel’s SKU is the control plane, not Cake/TVM-as-product. It does **not** mean this tree skips codegen. **This tree is the compiler object:** construct, check, simulate, print, and **always lower to NVIDIA GPU and Ascend NPU**. Compiler evolution (gates, sinks that consume the schedule, rare spec bumps) happens *to* this object. **Lintel IR** is the control-plane IR that conducts that loop.
+**Not a compiler company** means Lintel’s SKU is the control plane, not Cake/TVM-as-product. It does **not** mean this tree skips codegen. **This tree is the compiler object:** construct, check, simulate, print, and **always lower to NVIDIA GPU and Ascend NPU**. Year-1 is Horizon A / M1-lite: Lintel searches **only L4**; L5 is classical and **assumed (ISA designed later)**. Compiler evolution is **two clocks** (T5 across jobs, never M3 mid-walk). **Lintel IR** conducts that loop.
 
 ## When to use
 
@@ -40,8 +40,9 @@ Choreo is a typed kernel choreography IR for the data plane — Lintel’s L4 fa
 3. **Do not mix kinds.** Do not put MCP, agent DAGs, budget/stop, or land/revert in `choreoir`. Do not let Lintel invent Choreo keywords without a spec bump in this tree.
 4. **Yes as a typed L4 face for Lintel. No as a compiler *company* (SKU). Yes as a compiler *object* that must lower to NV GPU and Ascend NPU. No as Cake + Argus + TIRx glued into one dialect.**
 5. **Union of admit signals, not languages.** W/L/S/V may draw on Cake / Argus / TIRx *mechanisms*. Do not average those IRs. Third cell: cheap `shape × stride` so `{where: L}` can fire. No year-1 Z3. No CuTe work-partition.
-6. **Lowering is classical.** Interpreter and sinks are deterministic functions of the AST. Not LLM calls. The model does not rewrite the dialect (mlirAgent negative).
+6. **Lowering is classical.** Interpreter and sinks are deterministic functions of the AST. Not LLM calls. The model does not rewrite the dialect (mlirAgent negative). L5 is not a search surface. Do not design cubin/NPU ISA here until that later design lands; year-1 printers are the stand-in and must still consume the schedule.
 7. **`check() == []` is not serving \(F\).** Findings are T2-color compiler diagnostics. \(F\) lives in Lintel.
+8. **Two clocks.** Inside one job, `choreoir` is pinned: fail `{where}` → next Kernel, not a new opcode. Across CI, Lintel conducts commits on `main` and a new `%k`. Rewriting `check` during `^try0`→`^try1` is M3 — forbidden.
 
 ## Cake split (who owns what)
 
@@ -61,19 +62,18 @@ Year-1: evolve **gates + sinks**, not vocabulary.
 - Spec bump required: new op, space, role, or memory enum. Same day: a check that admits it **and** a sink that lowers it. Syntax without effects is forbidden.
 - Never here: serving \(F\), freeze, land/revert, “agents write the compiler” as a runtime feature.
 
-## Lowering (required: NVIDIA GPU and Ascend NPU)
+## Lowering (required families; L5 ISA later)
 
-This compiler object **always** lowers to both families. Missing that is a bug, not a non-goal.
+This compiler object **always** lowers to both families. The **path is assumed**; the cubin / NPU-bin **ISA is designed later**. Do not invent PTX/SASS/Davinci as the SKU.
 
-`choreoir.lower` is admit-gated (`check` errors refuse codegen). Named `Kernel.target` selects the family (`cuda` / `cuda-sm*` → NVIDIA Triton; `ascend*` → TileLang-Ascend). Year-1 SLA allowlists `copy` and `gemm_tile`.
+`choreoir.lower` is admit-gated (`check` errors refuse codegen). Named `Kernel.target` selects the family (`cuda` / `cuda-sm*` → NVIDIA; `ascend*` → Ascend). Year-1 SLA allowlists `copy` and `gemm_tile`.
 
-The sinks **must consume** partition widths, `Pipeline.depth`, layouts (`BLOCK_*`), `Barrier`, and memory spaces as codegen inputs — not comments-only. Today:
+Stand-in printers **must consume** partition widths, `Pipeline.depth`, layouts (`BLOCK_*`), `Barrier`, and memory spaces — not comments-only:
 
-- **NVIDIA cubin path:** CUDA C++ (`print_cuda`). `smem`→`__shared__`, `Copy`→gmem loads, `Barrier`→`__syncthreads`, `Pipeline.depth`→staged smem, ISA from target (`mma.sync` / `wgmma.mma_async` / `tcgen05.mma`). `materialize(..., emit='cubin')` runs `nvcc -cubin` when present; otherwise a warning and the `.cu` only.
-- **NVIDIA M2 source:** Triton knobs (`print_triton`) as above.
-- **Ascend:** TileLang-Ascend source. `materialize(..., emit='npu-bin')` tries TileLang/CANN; otherwise a warning and the `.npu.py` only.
+- **NVIDIA M2 / stand-in:** Triton knobs (`print_triton`) + CUDA C++ walk (`print_cuda`). `materialize(..., emit='cubin')` may run `nvcc` when present; otherwise a warning and source only.
+- **Ascend stand-in:** TileLang-Ascend. `emit='npu-bin'` may try CANN/TileLang; otherwise a warning and the `.npu.py` only.
 
-Do not unify NVIDIA smem and Ascend L1 into one `onchip` enum. Do not add a second live face. Device toolchains stay sinks we print *into*.
+Do not unify NVIDIA smem and Ascend L1 into one `onchip` enum. Do not add a second live face. Do not mutate PTX. Device toolchains stay sinks we print *into*.
 
 `print_triton` without `lower()` is a helper; CLI `print` goes through `lower()`. The demo that fails the product test is still “we compiled Choreo.”
 
@@ -89,7 +89,7 @@ Two SKUs, two sinks, **one** Finding schema. Not one averaged dialect. Lowering 
 
 Allowlist two complete kernels. Payload is kind 1; the deal is kind 2. Do not grow ops to look like Cake IR.
 
-If there is still no cubin / NPU bin, **M2** on the GPU sink is `@triton.v0` knobs (`num_warps`, `BLOCK_*`, `num_stages`) derived from the AST. That does not retire the Ascend sink. If kind 2 wins the GPU SKU, the NVIDIA mutation surface can shrink to knobs; Ascend lowering remains required.
+Until the later cubin / NPU-bin design lands, **M2** on the GPU sink is `@triton.v0` knobs (`num_warps`, `BLOCK_*`, `num_stages`) derived from the AST. That is the stand-in, not a secret second SKU. It does not retire the Ascend sink. If kind 2 wins the GPU SKU, the NVIDIA mutation surface **shrinks to knobs**.
 
 ## Implementation checklist
 
@@ -100,6 +100,8 @@ When changing this repo, ask:
 - [ ] Does this glue Cake + Argus + TIRx *languages* (layout algebra + hidden layout + TVM in the pin)? If yes, stop.
 - [ ] Does a new AST node have a check **and** a sink that consumes it?
 - [ ] Does NVIDIA *and* Ascend `lower()` still consume the new schedule fields?
+- [ ] Is this inventing L5/ISA (PTX, SASS, Davinci) instead of waiting for the later lowering design? If yes, stop.
+- [ ] Could this be read as mid-walk self-modify of `check` (M3)? If yes, stop.
 - [ ] Are GPU and Ascend still separate spaces/roles (no unified `onchip`)?
 - [ ] Are findings still `{gate, node, where?}` with no scraped stdout as the agent API?
 
@@ -111,6 +113,7 @@ When changing this repo, ask:
 - Put TVM in the pin just to wrap TIRx; `@tirx.v0` is an optional door for TVM-native partners.
 - Treat Helion / KernelEvolve / TritorX / generic coding agents as year-1 faces (no W/L/S/`%k`).
 - Run mlirAgent-style “rewrite the dialect” experiments as the mutation API.
+- Rewrite `check` or add opcodes **inside** one specialize walk. That is M3, not T5.
 
 ## Pointers
 
