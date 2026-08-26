@@ -33,7 +33,7 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 
 ## `%k` (`cache-key.v0`)
 
-`materialize` writes `pin.json`. `cache_key` is the freeze key (additionalProperties false). Kernel AST is the **value at** the key.
+`materialize` writes `pin.json`. `cache_key` is the freeze key (additionalProperties false). `cache_key_digest` is sha256 of canonical JSON of that key (sorted keys, no whitespace) and is the lookup address, not a key field. Kernel AST is the **value at** the key.
 
 | Field | This tree emits | Not |
 |---|---|---|
@@ -42,6 +42,7 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 | `hw_id` | `nvidia.sm_*` / `ascend.davinci`, or `--hw-id` | `Kernel.target` |
 | `graph_hash` | `sha256(lintel.graph.unspecified)` unless stamped | hash of Kernel JSON |
 | `policy_id` | `lintel.specialize.v0` (handshake slot) | |
+| `cache_key_digest` (pin sibling) | sha256 of canonical `cache_key` JSON | a sixth field *inside* `cache_key` |
 
 `Kernel.target` stays on the AST and as pin **payload** so `lower()` can replay. Admission is `hw_id`. Schema copy: [`schemas/cache-key.v0.schema.json`](../schemas/cache-key.v0.schema.json) (Lintel remains source of truth for field names).
 
@@ -90,11 +91,12 @@ A consume absorb is committed locally on lintel `main` but **cannot be pushed** 
 - `6fc4513` nested `Pipeline.body`, lowercase ops, `choreoir==0.1.8;nvcc.cubin`, year-1 `examples/choreo/{copy,gemm}.json`, T5 = commit on `choreoir` `main`, CUDA C++ / nvcc as the NVIDIA sink
 - `98356bc` drop remaining Triton-as-sink wording
 - `d4a0056` year-1 PoC CFG / admit-record slots are `copy` then `gemm_tile`; L-fail is `examples/choreo/layout_cover.proposal.json` (`{where: L, hint: buffer.A}`); attn envelopes moved to `examples/later/`
+- `0203863` `cache_key_digest` is sha256 of canonical `cache-key.v0` JSON (was a leftover Triton-era example hash)
 
 Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`.
 
-Files on the Lintel side that should absorb this: `docs/CHOREO.md`, `docs/DATA_PLANE.md`, `docs/ADAPTERS.md`, `docs/YEAR1.md`, `docs/SURVEY_MATCH.md`, `docs/LINTEL_IR.md`, `docs/POC.md`, `examples/admit-record.json` `compiler_ver` / `adapter_id` / `enum_id`, `schemas/adapter-proposal.v0.schema.json` op enum, `schemas/admit-record.v0.schema.json` `artifact.kind`, `examples/poc/*.json` / `*.lintel`, `examples/choreo/`.
+Files on the Lintel side that should absorb this: `docs/CHOREO.md`, `docs/DATA_PLANE.md`, `docs/ADAPTERS.md`, `docs/YEAR1.md`, `docs/SURVEY_MATCH.md`, `docs/LINTEL_IR.md`, `docs/POC.md`, `examples/admit-record.json` `compiler_ver` / `adapter_id` / `enum_id` / `cache_key_digest`, `schemas/adapter-proposal.v0.schema.json` op enum, `schemas/admit-record.v0.schema.json` `artifact.kind`, `examples/poc/*.json` / `*.lintel`, `examples/choreo/`.
 
 ## Never in this tree
 
-Freeze, land, revert, reject-as-SKU, serving \(F\), ADG walk, MCP, `%w`. Those stay Lintel objects. Emitting `cache_key` and `reject.where` is not owning them.
+Freeze, land, revert, reject-as-SKU, serving \(F\), ADG walk, MCP, `%w`. Those stay Lintel objects. Emitting `cache_key`, `cache_key_digest`, and `reject.where` is not owning them.

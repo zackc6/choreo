@@ -8,6 +8,7 @@
     "adapter_id": "choreo.v0",
     "policy_id": "lintel.specialize.v0"
   },
+  "cache_key_digest": "sha256:0a988b6c7ec30d9863d6168a266adc33900a6350adf72cd883b229f89566b569",
   "kernel": "gemm_tile",
   "family": "cuda",
   "isa": "mma.sync",

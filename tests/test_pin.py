@@ -10,6 +10,7 @@ from choreoir.lower import lower, materialize
 from choreoir.pin import (
     FACE_ADAPTER_ID,
     POLICY_ID_DEFAULT,
+    cache_key_digest,
     cache_key_errors,
     unspecified_graph_hash,
 )
@@ -33,6 +34,7 @@ def _assert_lintel_key(key: dict) -> None:
     assert "kernel" not in key
     assert "model_id" not in key
     assert "enum_id" not in key
+    assert "cache_key_digest" not in key
 
 
 def test_default_graph_hash_is_unspecified_not_kernel_json(tmp_path):
@@ -111,6 +113,34 @@ def test_cli_pin_validates_cache_key(tmp_path, capsys):
     assert main(["pin", str(bad)]) == 1
     errs = json.loads(capsys.readouterr().out)
     assert any("additional properties" in e for e in errs)
+    mismatched = tmp_path / "mismatch.json"
+    doc2 = json.loads(pin_path.read_text())
+    doc2["cache_key_digest"] = "sha256:" + "00" * 32
+    mismatched.write_text(json.dumps(doc2))
+    assert main(["pin", str(mismatched)]) == 1
+    errs2 = json.loads(capsys.readouterr().out)
+    assert any("cache_key_digest mismatch" in e for e in errs2)
+
+
+def test_cache_key_digest_is_sorted_compact_json():
+    key = {
+        "policy_id": "lintel.specialize.v0",
+        "adapter_id": "choreo.v0",
+        "compiler_ver": "choreoir==0.1.8;nvcc.cubin",
+        "hw_id": "nvidia.b200.80gb",
+        "graph_hash": "sha256:" + "bb" * 32,
+        "schema_version": "cache-key.v0",
+    }
+    canonical = (
+        '{"adapter_id":"choreo.v0","compiler_ver":"choreoir==0.1.8;nvcc.cubin",'
+        '"graph_hash":"sha256:' + "bb" * 32 + '",'
+        '"hw_id":"nvidia.b200.80gb","policy_id":"lintel.specialize.v0",'
+        '"schema_version":"cache-key.v0"}'
+    )
+    from choreoir.pin import cache_key_canonical
+
+    assert cache_key_canonical(key) == canonical
+    assert cache_key_digest(key) == "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def test_cli_lower_stamps_graph_hash(tmp_path, capsys):
@@ -142,6 +172,8 @@ def test_handshake_goldens_match_live_source_pin(tmp_path):
         live = materialize(k, tmp_path / name, emit="source").as_k()
         gold = json.loads((ROOT / "examples" / f"{name}.pin.json").read_text())
         _assert_lintel_key(live["cache_key"])
+        assert live["cache_key_digest"] == cache_key_digest(live["cache_key"])
         assert live == gold
         assert gold["sink_id"] == "cuda.cxx"
         assert gold["cache_key"]["adapter_id"] == FACE_ADAPTER_ID
+        assert gold["cache_key_digest"] == cache_key_digest(gold["cache_key"])

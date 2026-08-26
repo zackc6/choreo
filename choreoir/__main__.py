@@ -9,7 +9,7 @@ from .check import check
 from .interp import check_value, simulate
 from .jsonio import kernel_to_dict, load_kernel_doc
 from .lower import lower, materialize
-from .pin import apply_pin_stamps, cache_key_errors, extract_cache_key
+from .pin import apply_pin_stamps, cache_key_digest, cache_key_errors, extract_cache_key
 from .propose import adapter_proposal
 
 
@@ -100,6 +100,11 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(["no cache_key.v0 object in file"], indent=2))
             return 1
         errs = cache_key_errors(key)
+        stored = doc.get("cache_key_digest") if isinstance(doc, dict) else None
+        if isinstance(stored, str) and stored:
+            want = cache_key_digest(key)
+            if stored != want:
+                errs.append(f"cache_key_digest mismatch: stored {stored}, canonical {want}")
         print(json.dumps(errs, indent=2))
         return 1 if errs else 0
 

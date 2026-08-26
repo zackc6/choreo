@@ -16,6 +16,7 @@ from .pin import (
     adapter_id,
     apply_pin_stamps,
     cache_key,
+    cache_key_digest,
     graph_hash_of,
     hw_id_of,
     k_compiler_ver,
@@ -59,14 +60,16 @@ class Lowered:
         """Payload Lintel freezes. cache_key is cache-key.v0; this tree does not freeze, land, or serve F."""
         sink = self._sink()
         target = self.facts.target if self.facts else ""
+        key = cache_key(
+            graph_hash=self.graph_hash,
+            hw_id=self.hw_id,
+            compiler_ver=k_compiler_ver(self.compiler_ver, sink),
+            policy_id=self.policy_id,
+        )
         return {
             "schema_version": PIN_SCHEMA,
-            "cache_key": cache_key(
-                graph_hash=self.graph_hash,
-                hw_id=self.hw_id,
-                compiler_ver=k_compiler_ver(self.compiler_ver, sink),
-                policy_id=self.policy_id,
-            ),
+            "cache_key": key,
+            "cache_key_digest": cache_key_digest(key),
             "kernel": self.kernel_name,
             "family": self.family,
             "isa": self.facts.isa if self.facts else None,

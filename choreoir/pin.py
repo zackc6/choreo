@@ -9,6 +9,7 @@ that Lintel overwrites. Do not hash the Kernel JSON into graph_hash.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from typing import Any
 
@@ -119,6 +120,20 @@ def cache_key(
         "adapter_id": adapter_id,
         "policy_id": policy_id,
     }
+
+
+def cache_key_canonical(key: dict[str, str]) -> str:
+    """UTF-8 JSON of cache-key.v0: sorted keys, no whitespace.
+
+    Lintel `cache_key_digest` is sha256 of this string. The digest is the
+    lookup address, not a field *in* the key (additionalProperties false).
+    """
+    body = {k: key[k] for k in CACHE_KEY_FIELDS if k in key}
+    return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def cache_key_digest(key: dict[str, str]) -> str:
+    return digest_sha256(cache_key_canonical(key).encode("utf-8"))
 
 
 def cache_key_errors(obj: Any) -> list[str]:
