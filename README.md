@@ -61,7 +61,7 @@ A **checkable IR**, not a kernel-agent product.
 1. **AST** — kernel, buffers, layouts, partitions (roles), ops (`Copy`, `Mma`, `Reduce`, `Barrier`, `Pipeline`, `Yield`).
 2. **Admit W/L/S/V** — wellformed, layout legality, sync/race, tiny-tile value sim — returning *localized* findings (program point, optional thread/element), not scraped compiler stdout.
 3. **CPU interpreter** — so admit does not require a GPU (TIRx-style sim).
-4. **Lower** — admit-gated `lower()` to NVIDIA GPU and Ascend NPU stand-in printers. Year-1 allowlist: `copy`, `gemm_tile` (both write gmem). Cubin / NPU-bin ISA is later design; `lower().text` is CUDA C++ / CCE. Triton and TileLang are sidecars. Printers must still consume the schedule.
+4. **Lower** — admit-gated `lower()` to NVIDIA GPU and Ascend NPU. Year-1 allowlist: `copy`, `gemm_tile` (gmem writeback; gemm has `Pipeline.depth=3`). `lower().text` is CUDA C++ / CCE. Official `nvcc` / `ccec` emit ELF cubin / NPU-bin when present. Triton and TileLang are sidecars. Designed L5 ISA is later. Printers must consume the schedule.
 
 v2 (still data plane): plugin lowers to Gluon/TLX/TileLang/HIP; optional Z3 on layout tags.
 v3 (other repo): an agent that mutates Choreo IR and consumes finding JSON.
