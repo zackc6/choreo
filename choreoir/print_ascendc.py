@@ -23,14 +23,15 @@ _ALIGN = 256
 def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     """Emit CCE that consumes the Choreo schedule.
 
-    gmem → __gm__, Copy → copy_gm_to_ubuf / copy_ubuf_to_gm (burst from layout),
-    Barrier → pipe_barrier(PIPE_ALL), Pipeline.depth → staged loop **and**
-    staged UB span for smem (CUDA stages ``__shared__[depth]``),
-    Partition.width → ``block_idx < width`` (year-1 launch is one aicore so
-    core 0 always runs), Mma → named cube.mmad plus M/N/K loops and a UB
-    ``vmadd`` fallback indexed by layout stride (cube mad is later L5 /
-    cube-capable arch), Reduce → nested loops over ``axis`` plus UB
-    ``vector_dup`` / ``vadd`` (scalar ``+=`` is not an aicore op).
+    gmem → __gm__, Copy → copy_gm_to_ubuf / copy_ubuf_to_gm nested over
+    ``dst.layout.shape`` with addresses from shape×stride (CUDA Copy does
+    the same; year-1 ``copy`` is Copy-only), Barrier → pipe_barrier(PIPE_ALL),
+    Pipeline.depth → staged loop **and** staged UB span for smem (CUDA stages
+    ``__shared__[depth]``), Partition.width → ``block_idx < width`` (year-1
+    launch is one aicore so core 0 always runs), Mma → named cube.mmad plus
+    M/N/K loops and a UB ``vmadd`` fallback indexed by layout stride (cube
+    mad is later L5 / cube-capable arch), Reduce → nested loops over ``axis``
+    plus UB ``vector_dup`` / ``vadd`` (scalar ``+=`` is not an aicore op).
     """
     facts = facts or facts_from_kernel(kernel)
     fn = ident(kernel.name)
@@ -122,7 +123,10 @@ def _ub_ptr(name: str, kernel: Kernel, facts: ScheduleFacts) -> str:
 
 
 def _ub_at(name: str, kernel: Kernel, facts: ScheduleFacts, off: str) -> str:
-    """UB pointer plus a layout offset (Mma/Reduce). ``off==0`` is the base."""
+    """Pointer plus a layout offset (Copy/Mma/Reduce). ``off==0`` is the base.
+
+    gmem is the GM argument; smem is staged UB when ``Pipeline.depth > 1``.
+    """
     base = _ub_ptr(name, kernel, facts)
     if off == "0":
         return base
@@ -147,11 +151,6 @@ def _walk(ops: tuple[object, ...] | list[object]) -> list[object]:
         if isinstance(op, Pipeline):
             out.extend(_walk(op.body))
     return out
-
-
-def _len_burst(buf: Buffer) -> int:
-    nbytes = buf.layout.numel() * _ELEM_BYTES
-    return max(1, (nbytes + 31) // 32)
 
 
 def _wrap_width(inner: list[str], part_name: str, kernel: Kernel, indent: str) -> list[str]:
@@ -213,34 +212,35 @@ def _emit_copy(op: Copy, indent: str, kernel: Kernel, facts: ScheduleFacts) -> l
     role = part.role if part else "?"
     src_sp = _space_label(src, kernel)
     dst_sp = _space_label(dst, kernel)
-    burst = _len_burst(dst)
-    src_p = _ub_ptr(op.src, kernel, facts)
-    dst_p = _ub_ptr(op.dst, kernel, facts)
+    names = [f"i{d}" for d in range(len(dst.layout.shape))]
+    src_p = _ub_at(op.src, kernel, facts, _lin(src, names))
+    dst_p = _ub_at(op.dst, kernel, facts, _lin(dst, names))
     note = (
         f"{indent}// copy {op.id} {op.src}({src.space}/{src_sp})->"
         f"{op.dst}({dst.space}/{dst_sp}) @{op.partition} role={role} "
-        f"nBurst=1 lenBurst={burst} (32B)"
+        f"nBurst=1 lenBurst=1 (32B) layout stride → element DMA "
+        f"(CUDA Copy does the same)"
     )
     src_g = src.space == "gmem"
     dst_g = dst.space == "gmem"
     if src_g and not dst_g:
         call = (
-            f"{indent}copy_gm_to_ubuf((__ubuf__ void*){dst_p}, (__gm__ void*){src.name}, "
-            f"0, 1, {burst}, 0, 0);"
+            f"copy_gm_to_ubuf((__ubuf__ void*){dst_p}, (__gm__ void*){src_p}, "
+            f"0, 1, 1, 0, 0);"
         )
     elif dst_g and not src_g:
         call = (
-            f"{indent}copy_ubuf_to_gm((__gm__ void*){dst.name}, (__ubuf__ void*){src_p}, "
-            f"0, 1, {burst}, 0, 0);"
+            f"copy_ubuf_to_gm((__gm__ void*){dst_p}, (__ubuf__ void*){src_p}, "
+            f"0, 1, 1, 0, 0);"
         )
     elif not src_g and not dst_g:
         call = (
-            f"{indent}copy_ubuf_to_ubuf((__ubuf__ void*){dst_p}, (__ubuf__ void*){src_p}, "
-            f"0, 1, {burst}, 0, 0);"
+            f"copy_ubuf_to_ubuf((__ubuf__ void*){dst_p}, (__ubuf__ void*){src_p}, "
+            f"0, 1, 1, 0, 0);"
         )
     else:
         return [note, f"{indent}// gmem→gmem copy not lowered in v0.1 cce sink"]
-    return [note, call]
+    return [note, *_cce_loops(names, dst.layout.shape, indent, call)]
 
 
 def _emit_mma(op: Mma, indent: str, kernel: Kernel, facts: ScheduleFacts) -> list[str]:

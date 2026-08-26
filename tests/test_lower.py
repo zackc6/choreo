@@ -116,6 +116,7 @@ def test_lower_ascend_gemm_emits_l1_copy_gemm_barrier():
     assert out.family == "ascend"
     assert "__global__ __aicore__" in out.text
     assert "copy_gm_to_ubuf" in out.text
+    assert "Ag + i0 * 4 + i1" in out.text
     assert "pipe_barrier(PIPE_ALL)" in out.text
     assert "cube.mmad" in out.text
     assert "vmadd((C + i * 8 + j)," in out.text
@@ -185,6 +186,53 @@ def test_ccec_npu_bin_tracks_mma_layout_stride(tmp_path):
     compact = _gemm_k(target="ascend-a2")
     bufs = tuple(
         Buffer(b.name, b.space, Layout((8, 4), (8, 1)), b.dtype) if b.name == "As" else b
+        for b in compact.buffers
+    )
+    padded = Kernel(
+        compact.name,
+        target="ascend-a2",
+        buffers=bufs,
+        partitions=compact.partitions,
+        body=compact.body,
+    )
+    c = materialize(compact, tmp_path / "c", emit="npu-bin")
+    p = materialize(padded, tmp_path / "p", emit="npu-bin")
+    assert c.artifact_kind == "npu-bin" and p.artifact_kind == "npu-bin", (c.findings, p.findings)
+    hc = Path(c.artifact_path).read_bytes()
+    hp = Path(p.artifact_path).read_bytes()
+    assert hc[:4] == hp[:4] == b"\x7fELF"
+    assert hashlib.sha256(hc).digest() != hashlib.sha256(hp).digest()
+
+
+def test_cce_copy_indexes_layout_stride():
+    """CCE Copy addresses follow shape×stride, matching CUDA Copy."""
+    from choreoir.print_ascendc import print_ascendc
+
+    compact = print_ascendc(_copy_k(target="ascend-a2"))
+    assert "copy_gm_to_ubuf" in compact
+    assert "A + i0 * 8 + i1" in compact
+    assert "S + i0 * 8 + i1" in compact
+    assert "for (int i0 = 0; i0 < 8; ++i0)" in compact
+    assert "for (int i1 = 0; i1 < 8; ++i1)" in compact
+    padded = _copy_k(target="ascend-a2")
+    bufs = []
+    for b in padded.buffers:
+        if b.name == "A":
+            bufs.append(Buffer(b.name, b.space, Layout((8, 8), (16, 1)), b.dtype))
+        else:
+            bufs.append(b)
+    padded.buffers = tuple(bufs)
+    wide = print_ascendc(padded)
+    assert "A + i0 * 16 + i1" in wide
+    assert "A + i0 * 8 + i1" not in wide
+    assert compact != wide
+
+
+@pytest.mark.skipif(find_ccec() is None, reason="ccec not installed (stand-in writes .cce only)")
+def test_ccec_npu_bin_tracks_copy_layout_stride(tmp_path):
+    compact = _copy_k(target="ascend-a2")
+    bufs = tuple(
+        Buffer(b.name, b.space, Layout((8, 8), (16, 1)), b.dtype) if b.name == "A" else b
         for b in compact.buffers
     )
     padded = Kernel(
