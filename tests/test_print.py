@@ -17,6 +17,8 @@ def test_print_copy_contains_load_store():
     assert "tl.load" in text
     assert "tl.store" in text
     assert "copy c0" in text
+    assert "copy_launch" in text
+    assert "num_warps=4" in text
 
 
 def test_print_gemm_contains_dot():

@@ -140,6 +140,16 @@ def facts_from_kernel(kernel: Kernel) -> ScheduleFacts:
     )
 
 
+def partition_nthreads(width: int) -> int:
+    """NVIDIA threads for one partition: ``width`` warps × 32 lanes. Not CuTe."""
+    return max(int(width) * 32, 32)
+
+
+def launch_nthreads(facts: ScheduleFacts) -> int:
+    """Block size implied by summed partition widths (``num_warps``)."""
+    return max(facts.num_warps * 32, 32)
+
+
 def ident(name: str) -> str:
     cleaned = "".join(ch if ch.isalnum() else "_" for ch in name)
     if not cleaned or cleaned[0].isdigit():

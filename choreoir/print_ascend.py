@@ -20,6 +20,7 @@ def print_ascend(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
       gmem→GM, smem→L1, tmem→L0C, regs→UB (mma accumulator → L0C).
     Role map: load→MTE copy, math→Cube gemm.
     Pipeline.depth → T.Pipelined(..., num_stages=depth).
+    Partition.width (summed as num_warps) → T.Kernel(num_warps).
     Barrier → T.pipe_barrier after producer copies.
     Sidecar only. NPU-bin is `print_ascendc` + `ccec`.
     """
@@ -41,7 +42,8 @@ def print_ascend(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
         "",
         "@T.prim_func",
         f"def {fn}({sig}):",
-        "    with T.Kernel(1, is_npu=True):",
+        "    with T.Kernel("
+        f"{max(facts.num_warps, 1)}, is_npu=True):  # partition widths → aicore count",
     ]
     for b in kernel.buffers:
         alloc = _alloc_line(b, kernel)

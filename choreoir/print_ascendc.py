@@ -24,10 +24,12 @@ def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     """Emit CCE that consumes the Choreo schedule.
 
     gmem → __gm__, Copy → copy_gm_to_ubuf / copy_ubuf_to_gm (burst from layout),
-    Barrier → pipe_barrier(PIPE_ALL), Pipeline.depth → staged loop, Mma →
-    named cube.mmad plus M/N/K loops and a UB `vmadd` fallback (cube mad is
-    later L5 / cube-capable arch). Reduce → nested loops over ``axis`` plus
-    UB `vector_dup` / `vadd` (scalar ``+=`` is not an aicore op).
+    Barrier → pipe_barrier(PIPE_ALL), Pipeline.depth → staged loop,
+    Partition.width → ``block_idx < width`` (year-1 launch is one aicore so
+    core 0 always runs), Mma → named cube.mmad plus M/N/K loops and a UB
+    ``vmadd`` fallback (cube mad is later L5 / cube-capable arch). Reduce →
+    nested loops over ``axis`` plus UB ``vector_dup`` / ``vadd`` (scalar
+    ``+=`` is not an aicore op).
     """
     facts = facts or facts_from_kernel(kernel)
     fn = ident(kernel.name)
@@ -44,6 +46,7 @@ def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     lines = [
         f"// Choreo IR → Ascend NPU-bin path  |  kernel {kernel.name!r}  target={kernel.target!r}",
         f"// isa={facts.isa} arch={facts.arch} num_warps={facts.num_warps} num_stages={facts.num_stages}",
+        "// partition width → block_idx predicate (core 0 always participates when width>=1)",
         "// spaces: gmem→__gm__, smem→L1 (UB stand-in), tmem/mma C→L0C (UB stand-in), else UB",
         "// dtypes lowered as float stand-in so ccec needs no half headers (not L5 ISA)",
         "",
@@ -113,6 +116,16 @@ def _len_burst(buf: Buffer) -> int:
     return max(1, (nbytes + 31) // 32)
 
 
+def _wrap_width(inner: list[str], part_name: str, kernel: Kernel, indent: str) -> list[str]:
+    part = kernel.partition(part_name)
+    w = part.width if part else 1
+    return [
+        f"{indent}if (block_idx < {w}) {{  // partition {part_name} width={w}",
+        *inner,
+        f"{indent}}}",
+    ]
+
+
 def _emit_ops(
     ops: tuple[object, ...] | list[object],
     indent: str,
@@ -128,7 +141,7 @@ def _emit_ops(
             lines.extend(_emit_ops(op.body, indent + "  ", kernel, facts, bases))
             lines.append(f"{indent}}}")
         elif isinstance(op, Copy):
-            lines.extend(_emit_copy(op, indent, kernel))
+            lines.extend(_wrap_width(_emit_copy(op, indent + "  ", kernel), op.partition, kernel, indent))
         elif isinstance(op, Barrier):
             waits = ",".join(op.wait_for)
             part = kernel.partition(op.arrive)
@@ -138,9 +151,9 @@ def _emit_ops(
                 f"arrive {op.arrive} role={role}"
             )
         elif isinstance(op, Mma):
-            lines.extend(_emit_mma(op, indent, kernel, facts))
+            lines.extend(_wrap_width(_emit_mma(op, indent + "  ", kernel, facts), op.partition, kernel, indent))
         elif isinstance(op, Reduce):
-            lines.extend(_emit_reduce(op, indent, kernel))
+            lines.extend(_wrap_width(_emit_reduce(op, indent + "  ", kernel), op.partition, kernel, indent))
         elif isinstance(op, Yield):
             lines.append(f"{indent}// yield {op.id}: {','.join(op.values)}")
     return lines

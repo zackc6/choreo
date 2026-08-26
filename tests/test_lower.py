@@ -206,6 +206,8 @@ def test_examples_lower_cuda():
     assert "depth=3" in gout.text
     assert "_stage" in gout.text
     assert "[3]" in gout.text or "num_stages=3" in gout.triton_text
+    assert "__launch_bounds__" in gout.text
+    assert "threadIdx.x" in gout.text
 
 
 def test_cuda_cpp_consumes_smem_barrier_mma_isa():
@@ -228,6 +230,99 @@ def test_cuda_cpp_pipeline_stages_shared():
     text = print_cuda(k)
     assert "num_stages=3" in text or "depth=3" in text
     assert "[3]" in text or "_stage" in text
+
+
+def test_cuda_partition_width_is_codegen():
+    """Partition.width is a sink input, not a comment. Not CuTe work-partition."""
+    from choreoir.print_cuda import print_cuda
+
+    wide = _copy_k(target="cuda")
+    narrow = Kernel(
+        "copy",
+        target="cuda",
+        buffers=(
+            Buffer("A", "gmem", Layout((8, 8), (8, 1)), "f16"),
+            Buffer("S", "smem", Layout((8, 8), (8, 1)), "f16"),
+        ),
+        partitions=(Partition("load", "load", 1),),
+        body=(Copy("c0", "A", "S", "load"),),
+    )
+    t_wide = print_cuda(wide)
+    t_narrow = print_cuda(narrow)
+    assert "__launch_bounds__(128)" in t_wide  # 4 warps × 32
+    assert "__launch_bounds__(32)" in t_narrow
+    assert "threadIdx.x" in t_wide and "threadIdx.x" in t_narrow
+    assert "_i += 128" in t_wide  # load width 4
+    assert "_i += 32" in t_narrow
+    assert t_wide != t_narrow
+    assert "copy_launch" in lower(wide).triton_text
+    assert "num_warps=4" in lower(wide).triton_text
+
+
+def test_cce_partition_width_is_codegen():
+    from choreoir.print_ascendc import print_ascendc
+
+    wide = _copy_k(target="ascend-a2")
+    narrow = Kernel(
+        "copy",
+        target="ascend-a2",
+        buffers=(
+            Buffer("A", "gmem", Layout((8, 8), (8, 1)), "f16"),
+            Buffer("S", "smem", Layout((8, 8), (8, 1)), "f16"),
+        ),
+        partitions=(Partition("load", "load", 1),),
+        body=(Copy("c0", "A", "S", "load"),),
+    )
+    t_wide = print_ascendc(wide)
+    t_narrow = print_ascendc(narrow)
+    assert "block_idx < 4" in t_wide
+    assert "block_idx < 1" in t_narrow
+    assert t_wide != t_narrow
+    assert "T.Kernel(4, is_npu=True)" in lower(wide).tilelang_text
+
+
+@pytest.mark.skipif(find_nvcc() is None, reason="nvcc not installed (stand-in writes .cu only)")
+def test_nvcc_cubin_tracks_partition_width(tmp_path):
+    wide = _copy_k(target="cuda")
+    narrow = Kernel(
+        "copy",
+        target="cuda",
+        buffers=(
+            Buffer("A", "gmem", Layout((8, 8), (8, 1)), "f16"),
+            Buffer("S", "smem", Layout((8, 8), (8, 1)), "f16"),
+        ),
+        partitions=(Partition("load", "load", 1),),
+        body=(Copy("c0", "A", "S", "load"),),
+    )
+    w = materialize(wide, tmp_path / "w", emit="cubin")
+    n = materialize(narrow, tmp_path / "n", emit="cubin")
+    assert w.artifact_kind == "cubin" and n.artifact_kind == "cubin", (w.findings, n.findings)
+    hw = Path(w.artifact_path).read_bytes()
+    hn = Path(n.artifact_path).read_bytes()
+    assert hw[:4] == hn[:4] == b"\x7fELF"
+    assert hashlib.sha256(hw).digest() != hashlib.sha256(hn).digest()
+
+
+@pytest.mark.skipif(find_ccec() is None, reason="ccec not installed (stand-in writes .cce only)")
+def test_ccec_npu_bin_tracks_partition_width(tmp_path):
+    wide = _copy_k(target="ascend-a2")
+    narrow = Kernel(
+        "copy",
+        target="ascend-a2",
+        buffers=(
+            Buffer("A", "gmem", Layout((8, 8), (8, 1)), "f16"),
+            Buffer("S", "smem", Layout((8, 8), (8, 1)), "f16"),
+        ),
+        partitions=(Partition("load", "load", 1),),
+        body=(Copy("c0", "A", "S", "load"),),
+    )
+    w = materialize(wide, tmp_path / "w", emit="npu-bin")
+    n = materialize(narrow, tmp_path / "n", emit="npu-bin")
+    assert w.artifact_kind == "npu-bin" and n.artifact_kind == "npu-bin", (w.findings, n.findings)
+    hw = Path(w.artifact_path).read_bytes()
+    hn = Path(n.artifact_path).read_bytes()
+    assert hw[:4] == hn[:4] == b"\x7fELF"
+    assert hashlib.sha256(hw).digest() != hashlib.sha256(hn).digest()
 
 
 def test_cuda_cpp_writeback_gmem():
@@ -413,7 +508,8 @@ def test_cuda_and_cce_lower_reduce():
     cuda = print_cuda(_reduce_k("cuda"))
     assert "reduce r0 X-axis1->Y" in cuda
     assert "Y[rz0] = 0.f;" in cuda
-    assert "Y[rs0] += (float)X[rs0][rs1];" in cuda
+    assert "Y[rz0] += (float)X[rz0][rs1];" in cuda
+    assert "threadIdx.x" in cuda
     assert "not lowered" not in cuda
     cce = print_ascendc(_reduce_k("ascend-a2"))
     assert "reduce r0 X-axis1->Y" in cce

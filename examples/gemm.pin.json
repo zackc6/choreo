@@ -17,5 +17,5 @@
   "sink_id": "cuda.cxx",
   "artifact_kind": "source",
   "artifact_sha256": null,
-  "source_sha256": "75a1eeebae63ea42471e4a055664bf9eecd981c106d04a8386a84e8b0f481fce"
+  "source_sha256": "35c89c7700a020e683fed6984a64af966fc73b6c669a8c3221c2e661801893ec"
 }

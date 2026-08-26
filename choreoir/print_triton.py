@@ -16,7 +16,8 @@ def print_triton(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
         f"# Choreo IR → NVIDIA GPU (Triton sidecar)  |  kernel {kernel.name!r}  target={kernel.target or 'cuda'!r}",
         f"# @triton.v0 knobs: {facts.as_dict()}",
         "# Walk consumes schedule: Copy→tl.load/store, Barrier→tl.debug_barrier,",
-        "# Pipeline.depth→tl.range(num_stages=depth), Mma→tl.dot, layouts→BLOCK_*.",
+        "# Pipeline.depth→tl.range(num_stages=depth), Mma→tl.dot, layouts→BLOCK_*,",
+        "# partitions→num_warps on the launch helper (M2 knob, not a cubin).",
         "# Not a cubin. Not warp-specialized producer-consumer CUDA.",
     ]
     for p in kernel.partitions:
@@ -64,6 +65,12 @@ def _kernel_def(kernel: Kernel, facts: ScheduleFacts) -> list[str]:
         lines.append(f"    # no Copy/Mma in {kernel.name}; nothing to lower")
         return lines
     lines.extend(_emit_ops(kernel.body, "    ", kernel, facts))
+    lines.append("")
+    lines.append(f"def {fn}_launch({ptrs}, n, M, N, K):")
+    lines.append(
+        f"    {fn}[(1,)]({ptrs}, n, M, N, K, "
+        f"num_warps={facts.num_warps}, num_stages={facts.num_stages})"
+    )
     return lines
 
 
