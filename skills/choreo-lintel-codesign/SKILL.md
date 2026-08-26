@@ -79,7 +79,7 @@ Do not unify NVIDIA smem and Ascend L1 into one `onchip` enum. Do not add a seco
 
 `print_triton` without `lower()` is a helper; CLI `print` goes through `lower()`. The demo that fails the product test is still “we compiled Choreo.”
 
-`pin.json` is the Lintel handshake, not a freeze. `cache_key` matches `cache-key.v0`: face `adapter_id` is `choreo.v0`; `sink_id` (`nvcc.cubin` / `ccec.aicore` / …) is payload and the suffix of `compiler_ver`; `Kernel.target` is not a key field; default `graph_hash` is `sha256(lintel.graph.unspecified)` so Lintel can overwrite the L2 digest. `choreo pin path/to/pin.json` validates the key. Do not put freeze / land / revert / serving \(F\) / MCP in `choreoir`. The Lintel repo is the control-plane tree (docs + schemas in year-1); this agent does not land commits there.
+`pin.json` is the Lintel handshake, not a freeze. `cache_key` matches `cache-key.v0`: face `adapter_id` is `choreo.v0`; `sink_id` (`nvcc.cubin` / `ccec.aicore` / …) is payload and the suffix of `compiler_ver`; `Kernel.target` is not a key field; default `graph_hash` is `sha256(lintel.graph.unspecified)` so Lintel can overwrite the L2 digest. `choreo pin path/to/pin.json` validates the key. `choreo propose` emits `lintel.adapter_proposal.v0`; `reject.where` is the CFG edge (`W|L|S|V`). Do not put freeze / land / revert / serving \(F\) / MCP in `choreoir`. The Lintel repo is the control-plane tree (docs + schemas in year-1); this agent does not land commits there.
 
 ## Dual target (GPU and Ascend)
 
@@ -110,6 +110,7 @@ When changing this repo, ask:
 - [ ] Are GPU and Ascend still separate spaces/roles (no unified `onchip`)?
 - [ ] Are findings still `{where, gate, node, ...}` with no scraped stdout as the agent API?
 - [ ] Does `materialize` write `pin.json` (`as_k`) whose `cache_key` is Lintel `cache-key.v0` (`adapter_id=choreo.v0`, no `Kernel.target` in the key, `compiler_ver` names choreoir **and** the sink, `graph_hash` is not a Kernel hash), without this tree freezing?
+- [ ] Does `choreo propose` emit `adapter-proposal.v0` with `{where: W|L|S|V}` as a CFG edge (not `compile_ok`, not freeze)?
 
 ## Do not
 

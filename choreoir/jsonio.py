@@ -13,6 +13,9 @@ from .ast import (
     Reduce,
     Yield,
 )
+from .pin import apply_pin_stamps
+
+PROPOSAL_SCHEMA = "lintel.adapter_proposal.v0"
 
 
 def kernel_to_dict(k: Kernel) -> dict:
@@ -63,6 +66,30 @@ def kernel_from_dict(d: dict) -> Kernel:
     )
 
 
+def load_kernel_doc(d: dict) -> Kernel:
+    """Kernel JSON, or a lintel.adapter_proposal.v0 envelope."""
+    if d.get("schema") == PROPOSAL_SCHEMA and isinstance(d.get("kernel"), dict):
+        kernel = kernel_from_dict(d["kernel"])
+        apply_pin_stamps(
+            kernel,
+            graph_hash=d.get("graph_hash") if isinstance(d.get("graph_hash"), str) else None,
+            hw_id=d.get("hw_id") if isinstance(d.get("hw_id"), str) else None,
+        )
+        enum_id = d.get("enum_id")
+        if isinstance(enum_id, str) and enum_id and "enum_id" not in kernel.attrs:
+            kernel.attrs["enum_id"] = enum_id
+        return kernel
+    return kernel_from_dict(d)
+
+
+def _op_kind(raw: object) -> str:
+    """Canonical lowercase op tag. Lintel examples use PascalCase class names."""
+    text = str(raw)
+    if not text:
+        return text
+    return text[0].lower() + text[1:]
+
+
 def _op_to_dict(op: object) -> dict:
     if isinstance(op, Copy):
         return {"op": "copy", "id": op.id, "src": op.src, "dst": op.dst, "partition": op.partition}
@@ -104,7 +131,7 @@ def _op_to_dict(op: object) -> dict:
 
 
 def _op_from_dict(d: dict) -> object:
-    kind = d["op"]
+    kind = _op_kind(d["op"])
     if kind == "copy":
         return Copy(d["id"], d["src"], d["dst"], d["partition"])
     if kind == "mma":

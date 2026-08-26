@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zackc6/choreo/schemas/adapter-proposal.v0.schema.json",
+  "title": "LintelAdapterProposal",
+  "description": "Year-1 data-plane payload for Lintel propose/adapter_gate. Kernel JSON encoding is Choreo's (lowercase ops, target, compiler_ver). Lintel copies reject.{where,hint} onto a CFG edge. This tree does not freeze, land, or serve F. compile_ok is a Lintel gate after the sink, not a choreoir.check gate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "adapter_id", "kernel", "gates"],
+  "properties": {
+    "schema": { "const": "lintel.adapter_proposal.v0" },
+    "adapter_id": { "const": "choreo.v0" },
+    "graph_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "hw_id": { "type": "string", "minLength": 1 },
+    "compiler_ver": { "type": "string", "minLength": 1 },
+    "enum_id": { "type": "string", "minLength": 1 },
+    "kernel": { "type": "object" },
+    "gates": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["W", "L", "S", "V"] }
+    },
+    "reject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "where"],
+      "properties": {
+        "ok": { "const": false },
+        "where": { "type": "string", "enum": ["W", "L", "S", "V"] },
+        "hint": { "type": "string" },
+        "reason": { "type": "string" },
+        "finding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gate", "severity", "node", "msg"],
+          "properties": {
+            "gate": { "type": "string", "enum": ["W", "L", "S", "V"] },
+            "severity": { "type": "string", "enum": ["error", "warning"] },
+            "node": { "type": "string" },
+            "msg": { "type": "string" },
+            "partition": { "type": ["string", "null"] },
+            "thread": { "type": ["integer", "null"] },
+            "element": {
+              "type": ["array", "null"],
+              "items": { "type": "integer" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

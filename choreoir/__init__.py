@@ -15,10 +15,11 @@ from .ast import (
 )
 from .check import Finding, check
 from .interp import check_value, simulate, simulate_copy
-from .jsonio import kernel_from_dict, kernel_to_dict
+from .jsonio import kernel_from_dict, kernel_to_dict, load_kernel_doc
 from .knobs import YEAR1_KERNELS, ScheduleFacts, facts_from_kernel
 from .lower import Lowered, adapter_id, find_ccec, find_nvcc, lower, materialize
 from .pin import FACE_ADAPTER_ID, cache_key_errors, sink_id, unspecified_graph_hash
+from .propose import adapter_proposal
 from .print_ascend import print_ascend
 from .print_ascendc import print_ascendc
 from .print_cuda import print_cuda
@@ -46,8 +47,10 @@ __all__ = [
     "facts_from_kernel",
     "kernel_from_dict",
     "kernel_to_dict",
+    "load_kernel_doc",
     "lower",
     "materialize",
+    "adapter_proposal",
     "adapter_id",
     "find_nvcc",
     "find_ccec",

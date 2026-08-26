@@ -87,6 +87,8 @@ python3 -m choreoir print examples/gemm.json --target ascend-a2
 python3 -m choreoir lower examples/gemm.json -o /tmp/choreo-out --emit cubin
 python3 -m choreoir lower examples/gemm.json -o /tmp/choreo-npu --target ascend-a2 --emit npu-bin
 python3 -m choreoir pin /tmp/choreo-out/pin.json
+python3 -m choreoir propose examples/copy.json
+python3 -m choreoir propose examples/fails/layout_cover.json
 ```
 
 Or from Python:

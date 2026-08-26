@@ -25,6 +25,18 @@ class Finding:
     thread: int | None = None
     element: tuple[int, ...] | None = None
 
+    def as_lintel_dict(self) -> dict:
+        """adapter-proposal finding: no extra `where` (reject.where is the CFG edge)."""
+        return {
+            "gate": self.gate,
+            "severity": self.severity,
+            "node": self.node,
+            "msg": self.msg,
+            "partition": self.partition,
+            "thread": self.thread,
+            "element": list(self.element) if self.element is not None else None,
+        }
+
     def as_dict(self) -> dict:
         return {
             "where": self.gate,  # W|L|S|V — Lintel CFG edge; same value as gate

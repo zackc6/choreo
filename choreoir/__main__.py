@@ -7,9 +7,10 @@ from pathlib import Path
 
 from .check import check
 from .interp import check_value, simulate
-from .jsonio import kernel_from_dict, kernel_to_dict
+from .jsonio import kernel_to_dict, load_kernel_doc
 from .lower import lower, materialize
-from .pin import cache_key_errors, extract_cache_key
+from .pin import apply_pin_stamps, cache_key_errors, extract_cache_key
+from .propose import adapter_proposal
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -66,6 +67,16 @@ def main(argv: list[str] | None = None) -> int:
     pinp = sub.add_parser("pin", help="validate pin.json cache_key.v0 (Lintel handshake)")
     pinp.add_argument("pin", type=Path)
 
+    prp = sub.add_parser(
+        "propose",
+        help="emit lintel.adapter_proposal.v0 (admit signals as CFG edges; not freeze)",
+    )
+    prp.add_argument("kernel", type=Path)
+    prp.add_argument("-o", "--out", type=Path, default=None)
+    prp.add_argument("--graph-hash", default=None)
+    prp.add_argument("--hw-id", default=None)
+    prp.add_argument("--enum-id", default=None)
+
     d = sub.add_parser("dump", help="round-trip kernel JSON to stdout")
     d.add_argument("kernel", type=Path)
 
@@ -80,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(errs, indent=2))
         return 1 if errs else 0
 
-    kernel = kernel_from_dict(_read_json(args.kernel))
+    kernel = load_kernel_doc(_read_json(args.kernel))
 
     if args.cmd == "check":
         findings = check(kernel)
@@ -126,6 +137,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(result.as_manifest(), indent=2))
         return 1 if result.errors() else 0
+
+    if args.cmd == "propose":
+        apply_pin_stamps(kernel, graph_hash=args.graph_hash, hw_id=args.hw_id)
+        doc = adapter_proposal(kernel, enum_id=args.enum_id)
+        text = json.dumps(doc, indent=2) + "\n"
+        if args.out is not None:
+            args.out.write_text(text)
+        else:
+            sys.stdout.write(text)
+        return 1 if "reject" in doc else 0
 
     if args.cmd == "dump":
         print(json.dumps(kernel_to_dict(kernel), indent=2))
