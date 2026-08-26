@@ -24,7 +24,8 @@ def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     """Emit CCE that consumes the Choreo schedule.
 
     gmem → __gm__, Copy → copy_gm_to_ubuf / copy_ubuf_to_gm (burst from layout),
-    Barrier → pipe_barrier(PIPE_ALL), Pipeline.depth → staged loop,
+    Barrier → pipe_barrier(PIPE_ALL), Pipeline.depth → staged loop **and**
+    staged UB span for smem (CUDA stages ``__shared__[depth]``),
     Partition.width → ``block_idx < width`` (year-1 launch is one aicore so
     core 0 always runs), Mma → named cube.mmad plus M/N/K loops and a UB
     ``vmadd`` fallback (cube mad is later L5 / cube-capable arch). Reduce →
@@ -42,11 +43,12 @@ def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     )
     if not args:
         args = "void"
-    bases = _onchip_bases(kernel)
+    bases = _onchip_bases(kernel, facts)
     lines = [
         f"// Choreo IR → Ascend NPU-bin path  |  kernel {kernel.name!r}  target={kernel.target!r}",
         f"// isa={facts.isa} arch={facts.arch} num_warps={facts.num_warps} num_stages={facts.num_stages}",
         "// partition width → block_idx predicate (core 0 always participates when width>=1)",
+        "// Pipeline.depth → staged UB span for smem (CUDA stages __shared__[depth])",
         "// spaces: gmem→__gm__, smem→L1 (UB stand-in), tmem/mma C→L0C (UB stand-in), else UB",
         "// dtypes lowered as float stand-in so ccec needs no half headers (not L5 ISA)",
         "",
@@ -57,10 +59,13 @@ def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
             continue
         base = bases[b.name]
         label = _space_label(b, kernel)
+        stage_note = ""
+        if facts.num_stages > 1 and b.space == "smem":
+            stage_note = f"  pipeline stages={facts.num_stages} span={_stage_span_elems(b)}"
         lines.append(
             f"  __ubuf__ {_C_DTYPE}* {b.name} = (__ubuf__ {_C_DTYPE}*){base};"
             f"  // Choreo space={b.space} → {label} stand-in UB base {base}"
-            f"  dtype={b.dtype} numel={b.layout.numel()}"
+            f"  dtype={b.dtype} numel={b.layout.numel()}{stage_note}"
         )
     lines.extend(_emit_ops(kernel.body, "  ", kernel, facts, bases))
     lines.append("}")
@@ -79,16 +84,41 @@ def _is_readonly(buf: Buffer, kernel: Kernel) -> bool:
     return True
 
 
-def _onchip_bases(kernel: Kernel) -> dict[str, int]:
+def _align_bytes(nbytes: int) -> int:
+    return ((nbytes + _ALIGN - 1) // _ALIGN) * _ALIGN
+
+
+def _stage_span_elems(buf: Buffer) -> int:
+    """Elements in one pipeline stage slot (256B-aligned)."""
+    nbytes = max(buf.layout.numel() * _ELEM_BYTES, 32)
+    return _align_bytes(nbytes) // _ELEM_BYTES
+
+
+def _onchip_bases(kernel: Kernel, facts: ScheduleFacts) -> dict[str, int]:
     bases: dict[str, int] = {}
     off = 0
+    stages = max(facts.num_stages, 1)
     for buf in kernel.buffers:
         if buf.space == "gmem":
             continue
         bases[buf.name] = off
         nbytes = max(buf.layout.numel() * _ELEM_BYTES, 32)
-        off += ((nbytes + _ALIGN - 1) // _ALIGN) * _ALIGN
+        aligned = _align_bytes(nbytes)
+        if buf.space == "smem" and stages > 1:
+            off += aligned * stages
+        else:
+            off += aligned
     return bases
+
+
+def _ub_ptr(name: str, kernel: Kernel, facts: ScheduleFacts) -> str:
+    """smem pointer, staged by ``_stage`` when Pipeline.depth > 1. Matches CUDA."""
+    buf = kernel.buffer(name)
+    if buf is None:
+        return name
+    if facts.num_stages > 1 and buf.space == "smem":
+        return f"({name} + _stage * {_stage_span_elems(buf)})"
+    return name
 
 
 def _space_label(buf: Buffer, kernel: Kernel) -> str:
@@ -141,7 +171,11 @@ def _emit_ops(
             lines.extend(_emit_ops(op.body, indent + "  ", kernel, facts, bases))
             lines.append(f"{indent}}}")
         elif isinstance(op, Copy):
-            lines.extend(_wrap_width(_emit_copy(op, indent + "  ", kernel), op.partition, kernel, indent))
+            lines.extend(
+                _wrap_width(
+                    _emit_copy(op, indent + "  ", kernel, facts), op.partition, kernel, indent
+                )
+            )
         elif isinstance(op, Barrier):
             waits = ",".join(op.wait_for)
             part = kernel.partition(op.arrive)
@@ -153,13 +187,17 @@ def _emit_ops(
         elif isinstance(op, Mma):
             lines.extend(_wrap_width(_emit_mma(op, indent + "  ", kernel, facts), op.partition, kernel, indent))
         elif isinstance(op, Reduce):
-            lines.extend(_wrap_width(_emit_reduce(op, indent + "  ", kernel), op.partition, kernel, indent))
+            lines.extend(
+                _wrap_width(
+                    _emit_reduce(op, indent + "  ", kernel, facts), op.partition, kernel, indent
+                )
+            )
         elif isinstance(op, Yield):
             lines.append(f"{indent}// yield {op.id}: {','.join(op.values)}")
     return lines
 
 
-def _emit_copy(op: Copy, indent: str, kernel: Kernel) -> list[str]:
+def _emit_copy(op: Copy, indent: str, kernel: Kernel, facts: ScheduleFacts) -> list[str]:
     src, dst = kernel.buffer(op.src), kernel.buffer(op.dst)
     if src is None or dst is None:
         return [f"{indent}// copy {op.id} missing buffer"]
@@ -168,6 +206,8 @@ def _emit_copy(op: Copy, indent: str, kernel: Kernel) -> list[str]:
     src_sp = _space_label(src, kernel)
     dst_sp = _space_label(dst, kernel)
     burst = _len_burst(dst)
+    src_p = _ub_ptr(op.src, kernel, facts)
+    dst_p = _ub_ptr(op.dst, kernel, facts)
     note = (
         f"{indent}// copy {op.id} {op.src}({src.space}/{src_sp})->"
         f"{op.dst}({dst.space}/{dst_sp}) @{op.partition} role={role} "
@@ -177,17 +217,17 @@ def _emit_copy(op: Copy, indent: str, kernel: Kernel) -> list[str]:
     dst_g = dst.space == "gmem"
     if src_g and not dst_g:
         call = (
-            f"{indent}copy_gm_to_ubuf((__ubuf__ void*){dst.name}, (__gm__ void*){src.name}, "
+            f"{indent}copy_gm_to_ubuf((__ubuf__ void*){dst_p}, (__gm__ void*){src.name}, "
             f"0, 1, {burst}, 0, 0);"
         )
     elif dst_g and not src_g:
         call = (
-            f"{indent}copy_ubuf_to_gm((__gm__ void*){dst.name}, (__ubuf__ void*){src.name}, "
+            f"{indent}copy_ubuf_to_gm((__gm__ void*){dst.name}, (__ubuf__ void*){src_p}, "
             f"0, 1, {burst}, 0, 0);"
         )
     elif not src_g and not dst_g:
         call = (
-            f"{indent}copy_ubuf_to_ubuf((__ubuf__ void*){dst.name}, (__ubuf__ void*){src.name}, "
+            f"{indent}copy_ubuf_to_ubuf((__ubuf__ void*){dst_p}, (__ubuf__ void*){src_p}, "
             f"0, 1, {burst}, 0, 0);"
         )
     else:
@@ -214,7 +254,8 @@ def _emit_mma(op: Mma, indent: str, kernel: Kernel, facts: ScheduleFacts) -> lis
         f"{indent}for (int i = 0; i < {m}; ++i) {{",
         f"{indent}  for (int j = 0; j < {n}; ++j) {{",
         f"{indent}    for (int kk = 0; kk < {k}; ++kk) {{",
-        f"{indent}      vmadd({op.c}, {op.a}, {op.b}, 1);",
+        f"{indent}      vmadd({_ub_ptr(op.c, kernel, facts)}, {_ub_ptr(op.a, kernel, facts)}, "
+        f"{_ub_ptr(op.b, kernel, facts)}, 1);",
         f"{indent}    }}",
         f"{indent}  }}",
         f"{indent}}}",
@@ -240,7 +281,7 @@ def _cce_loops(names: list[str], extents: tuple[int, ...], indent: str, body: st
     return lines
 
 
-def _emit_reduce(op: Reduce, indent: str, kernel: Kernel) -> list[str]:
+def _emit_reduce(op: Reduce, indent: str, kernel: Kernel, facts: ScheduleFacts) -> list[str]:
     src, dst = kernel.buffer(op.src), kernel.buffer(op.dst)
     part = kernel.partition(op.partition)
     role = part.role if part else "?"
@@ -250,17 +291,19 @@ def _emit_reduce(op: Reduce, indent: str, kernel: Kernel) -> list[str]:
     dst_from_src = [src_names[d] for d in range(len(src.layout.shape)) if d != op.axis]
     dst_off = _lin(dst, dst_from_src)
     src_off = _lin(src, src_names)
+    src_p = _ub_ptr(op.src, kernel, facts)
+    dst_p = _ub_ptr(op.dst, kernel, facts)
     lines = [
         f"{indent}// reduce {op.id} {op.src}-axis{op.axis}->{op.dst} @{op.partition} role={role}",
         f"{indent}// aicore forbids scalar +=; UB vector_dup/vadd fallback (not L5 ISA)",
-        f"{indent}vector_dup({dst.name}, 0.f, 1);",
+        f"{indent}vector_dup({dst_p}, 0.f, 1);",
     ]
     lines.extend(
         _cce_loops(
             src_names,
             src.layout.shape,
             indent,
-            f"vadd({dst.name} + {dst_off}, {dst.name} + {dst_off}, {src.name} + {src_off}, 1);",
+            f"vadd({dst_p} + {dst_off}, {dst_p} + {dst_off}, {src_p} + {src_off}, 1);",
         )
     )
     return lines

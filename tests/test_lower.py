@@ -137,6 +137,23 @@ def test_lower_ascend_pipeline_depth():
     assert "depth=3" in out.text
     assert "for (int _stage = 0; _stage < 3; ++_stage)" in out.text
     assert "T.Pipelined(1, num_stages=3)" in out.tilelang_text
+    assert "_stage *" in out.text
+    assert "pipeline stages=3" in out.text
+
+
+def test_cce_pipeline_depth_stages_ub():
+    """Pipeline.depth stages smem UB the way CUDA stages __shared__[depth]."""
+    from choreoir.print_ascendc import print_ascendc
+
+    deep = print_ascendc(_gemm_k(pipeline_depth=3, target="ascend-a2"))
+    shallow = print_ascendc(_gemm_k(pipeline_depth=1, target="ascend-a2"))
+    assert "_stage *" in deep
+    assert "pipeline stages=3" in deep
+    assert "_stage *" not in shallow
+    assert "pipeline stages=" not in shallow
+    assert deep != shallow
+    assert "As + _stage *" in deep
+    assert "Bs + _stage *" in deep
 
 
 def test_lower_requires_named_target():
@@ -326,6 +343,19 @@ def test_ccec_npu_bin_tracks_partition_width(tmp_path):
     assert hashlib.sha256(hw).digest() != hashlib.sha256(hn).digest()
 
 
+@pytest.mark.skipif(find_ccec() is None, reason="ccec not installed (stand-in writes .cce only)")
+def test_ccec_npu_bin_tracks_pipeline_depth(tmp_path):
+    deep = _gemm_k(pipeline_depth=3, target="ascend-a2")
+    shallow = _gemm_k(pipeline_depth=1, target="ascend-a2")
+    d = materialize(deep, tmp_path / "d3", emit="npu-bin")
+    s = materialize(shallow, tmp_path / "d1", emit="npu-bin")
+    assert d.artifact_kind == "npu-bin" and s.artifact_kind == "npu-bin", (d.findings, s.findings)
+    hd = Path(d.artifact_path).read_bytes()
+    hs = Path(s.artifact_path).read_bytes()
+    assert hd[:4] == hs[:4] == b"\x7fELF"
+    assert hashlib.sha256(hd).digest() != hashlib.sha256(hs).digest()
+
+
 def test_cuda_cpp_writeback_gmem():
     from choreoir.print_cuda import print_cuda
 
@@ -483,6 +513,7 @@ def test_print_ascendc_consumes_copy_barrier_mma_pipeline():
     assert "pipe_barrier(PIPE_ALL)" in text
     assert "depth=3" in text
     assert "_stage" in text
+    assert "_stage *" in text
     assert "cube.mmad" in text
     assert "role=math" in text
     assert "vmadd(" in text
