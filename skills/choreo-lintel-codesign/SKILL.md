@@ -93,7 +93,7 @@ Two SKUs, two sinks, **one** Finding schema. Not one averaged dialect. Lowering 
 
 Allowlist two complete kernels (gmem writeback via `store`). Payload is kind 1; the deal is kind 2. Do not grow ops to look like Cake IR.
 
-Until the later cubin / NPU-bin design lands, **M2** on the GPU sink is `@triton.v0` knobs (`num_warps`, `BLOCK_*`, `num_stages`) derived from the AST. That is the stand-in, not a secret second SKU. It does not retire the Ascend sink. If kind 2 wins the GPU SKU, the NVIDIA mutation surface **shrinks to knobs**.
+Until the later cubin / NPU-bin **ISA** design lands, **M2** on the GPU sink is `@triton.v0` knobs as **standby**. Year-1 NVIDIA cubin via official `nvcc` already exists for the allowlist; do not flip the SKU to knobs while that ELF path holds. If kind 2 wins the SKU anyway, this mutation surface **shrinks to knobs**.
 
 ## Implementation checklist
 
@@ -126,6 +126,7 @@ When changing this repo, ask:
 ## Pointers
 
 - Goal: [`goals/lintel-codesign.md`](goals/lintel-codesign.md)
+- Lintel consume contract: [`docs/LINTEL_CONSUME.md`](docs/LINTEL_CONSUME.md)
 - Grammar / admit: [`docs/SPEC.md`](docs/SPEC.md)
 - AST / check / printer: `choreoir/`
 - Cake: arXiv:2608.12629

@@ -144,7 +144,7 @@ Cake is NVIDIA-only. “Better than Cake on Ascend” is vacuous. The Ascend bar
 
 SLA allowlists two complete kernels. Payload is a program (kind 1); the *deal* is kind 2. Do not grow the dialect to look like a language company.
 
-**M2 kill switch:** if the designed cubin sink never lands, flip to `@triton.v0` knobs rather than sell “we compiled Choreo.” Kind 2 has stronger near-term evidence for weak models. If kind 2 wins the SKU, this mutation surface **shrinks to knobs**.
+**M2 kill switch:** NVIDIA cubin via official `nvcc` has landed for the year-1 allowlist (stand-in path, not the later L5 ISA). The kill is **standby**: if that path is withdrawn, flip to `@triton.v0` knobs rather than sell “we compiled Choreo.” Kind 2 has stronger near-term evidence for weak models. If kind 2 wins the SKU, this mutation surface **shrinks to knobs**.
 
 ## Success criteria
 

@@ -2,7 +2,7 @@
 
 Status: draft. Data-plane object only. No agent protocol in this file.
 
-Co-design with Lintel: [`goals/lintel-codesign.md`](../goals/lintel-codesign.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](../skills/choreo-lintel-codesign/SKILL.md).
+Co-design with Lintel: [`goals/lintel-codesign.md`](../goals/lintel-codesign.md). What Lintel should consume: [`LINTEL_CONSUME.md`](LINTEL_CONSUME.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](../skills/choreo-lintel-codesign/SKILL.md).
 
 ## 1. Design rules
 
