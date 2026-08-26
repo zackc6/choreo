@@ -96,6 +96,10 @@ class Yield:
 
 Op = Copy | Mma | Reduce | Barrier | Pipeline | Yield
 
+# Pinned on the Kernel and as the installable package version. Bump when
+# admit or a year-1 sink that changes the cubin/NPU-bin object changes.
+COMPILER_VER = "0.1.9"
+
 
 @dataclass
 class Kernel:
@@ -106,7 +110,7 @@ class Kernel:
     body: tuple[Op, ...] = ()
     attrs: dict[str, str] = field(default_factory=dict)
     target: str = ""  # cuda | cuda-sm90 | cuda-sm100 | ascend-a2 | ...
-    compiler_ver: str = "0.1.8"  # choreoir pin; not mutated inside one walk. %k combines this with the sink.
+    compiler_ver: str = COMPILER_VER  # choreoir pin; not mutated inside one walk. %k combines this with the sink.
 
     def buffer(self, name: str) -> Buffer | None:
         return next((b for b in self.buffers if b.name == name), None)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .ast import (
+    COMPILER_VER,
     Barrier,
     Buffer,
     Copy,
@@ -62,7 +63,7 @@ def kernel_from_dict(d: dict) -> Kernel:
         body=tuple(_op_from_dict(op) for op in d.get("body", [])),
         attrs=dict(d.get("attrs", {})),
         target=str(d.get("target", "")),
-        compiler_ver=str(d.get("compiler_ver", "0.1.8")),
+        compiler_ver=str(d.get("compiler_ver", COMPILER_VER)),
     )
 
 

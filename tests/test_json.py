@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from choreoir.ast import COMPILER_VER
 from choreoir.jsonio import kernel_from_dict, kernel_to_dict
 from choreoir.check import check
 
@@ -14,7 +15,7 @@ def test_examples_roundtrip_and_admit():
         assert check(k) == []
         again = kernel_from_dict(kernel_to_dict(k))
         assert kernel_to_dict(again) == kernel_to_dict(k)
-        assert kernel_to_dict(k)["compiler_ver"] == "0.1.8"
+        assert kernel_to_dict(k)["compiler_ver"] == COMPILER_VER
 
 
 def test_package_version_matches_kernel_pin():
@@ -22,11 +23,11 @@ def test_package_version_matches_kernel_pin():
     from importlib.metadata import version
 
     import choreoir
-    from choreoir.ast import Kernel
+    from choreoir.ast import COMPILER_VER, Kernel
 
-    assert version("choreoir") == "0.1.8"
-    assert choreoir.__version__ == "0.1.8"
-    assert Kernel.__dataclass_fields__["compiler_ver"].default == "0.1.8"
+    assert version("choreoir") == COMPILER_VER
+    assert choreoir.__version__ == COMPILER_VER
+    assert Kernel.__dataclass_fields__["compiler_ver"].default == COMPILER_VER
 
 
 def test_compiler_ver_roundtrip_pin():

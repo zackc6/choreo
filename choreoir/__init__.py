@@ -1,6 +1,7 @@
 """Choreo IR: Lintel's L4 compiler object — construct, check, simulate, lower to NVIDIA GPU and Ascend NPU."""
 
 from .ast import (
+    COMPILER_VER,
     Barrier,
     Buffer,
     Copy,
@@ -31,9 +32,10 @@ try:
 
     __version__ = _pkg_version("choreoir")
 except Exception:  # pragma: no cover
-    __version__ = "0.1.8"
+    __version__ = COMPILER_VER
 
 __all__ = [
+    "COMPILER_VER",
     "Barrier",
     "Buffer",
     "Copy",

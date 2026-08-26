@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from choreoir.__main__ import main
+from choreoir.ast import COMPILER_VER
 from choreoir.jsonio import kernel_from_dict, kernel_to_dict
 from choreoir.lower import lower, materialize
 from choreoir.pin import (
@@ -48,7 +49,7 @@ def test_default_graph_hash_is_unspecified_not_kernel_json(tmp_path):
     assert key["graph_hash"] != kernel_digest
     assert pin["target"] == "cuda"
     assert pin["sink_id"] == "cuda.cxx"
-    assert key["compiler_ver"] == "choreoir==0.1.8;cuda.cxx"
+    assert key["compiler_ver"] == f"choreoir=={COMPILER_VER};cuda.cxx"
     assert key["hw_id"] == "nvidia.sm_80"
     assert key["policy_id"] == POLICY_ID_DEFAULT
 
@@ -126,13 +127,13 @@ def test_cache_key_digest_is_sorted_compact_json():
     key = {
         "policy_id": "lintel.specialize.v0",
         "adapter_id": "choreo.v0",
-        "compiler_ver": "choreoir==0.1.8;nvcc.cubin",
+        "compiler_ver": f"choreoir=={COMPILER_VER};nvcc.cubin",
         "hw_id": "nvidia.b200.80gb",
         "graph_hash": "sha256:" + "bb" * 32,
         "schema_version": "cache-key.v0",
     }
     canonical = (
-        '{"adapter_id":"choreo.v0","compiler_ver":"choreoir==0.1.8;nvcc.cubin",'
+        f'{{"adapter_id":"choreo.v0","compiler_ver":"choreoir=={COMPILER_VER};nvcc.cubin",'
         '"graph_hash":"sha256:' + "bb" * 32 + '",'
         '"hw_id":"nvidia.b200.80gb","policy_id":"lintel.specialize.v0",'
         '"schema_version":"cache-key.v0"}'

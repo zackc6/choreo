@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from choreoir.ast import COMPILER_VER
 from choreoir.check import check
 from choreoir.interp import check_value
 from choreoir.jsonio import kernel_from_dict
@@ -133,8 +134,8 @@ def test_nvcc_cubin_pin_is_lintel_payload(tmp_path):
 
 # Lintel freeze addresses for the same L2 graph, two sinks. Not a third kernel.
 _LAND_GRAPH = "sha256:bbcd57f9162e8a42bbf26df28a6b2a3ac2f8793061c036e198afeaf4f65d6db0"
-_LAND_NV_K = "sha256:b78ccb3a7475bb61043d1bbe6404b39786eb587de9a6b01705a718520d739d5b"
-_LAND_NPU_K = "sha256:5856cd4c2a004cc4c3a3b520ff785b710af0bb0c6997e05c1ede6d6d480e323a"
+_LAND_NV_K = "sha256:71f32cff225611f4a03c77437866ed77556b720a0f7ea4ef8a32347fef62821c"
+_LAND_NPU_K = "sha256:67a233d217c6bb645bec8a29f6f20ce2a83fdcbe2b136ee4435992f1d863e7d0"
 
 
 def test_same_copy_kernel_two_sinks_two_k():
@@ -170,13 +171,13 @@ def test_lintel_land_and_ascend_sibling_k_digests():
     nv = cache_key(
         graph_hash=_LAND_GRAPH,
         hw_id="nvidia.b200.80gb",
-        compiler_ver="choreoir==0.1.8;nvcc.cubin",
+        compiler_ver=f"choreoir=={COMPILER_VER};nvcc.cubin",
         policy_id="lintel.specialize.v0",
     )
     npu = cache_key(
         graph_hash=_LAND_GRAPH,
         hw_id="ascend.davinci",
-        compiler_ver="choreoir==0.1.8;ccec.aicore",
+        compiler_ver=f"choreoir=={COMPILER_VER};ccec.aicore",
         policy_id="lintel.specialize.v0",
     )
     assert cache_key_digest(nv) == _LAND_NV_K

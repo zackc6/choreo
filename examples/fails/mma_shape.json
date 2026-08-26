@@ -1,6 +1,6 @@
 {
   "name": "gemm_tile",
-  "compiler_ver": "0.1.8",
+  "compiler_ver": "0.1.9",
   "target": "cuda",
   "buffers": [
     {

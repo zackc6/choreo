@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from choreoir.ast import (
+    COMPILER_VER,
     Barrier,
     Buffer,
     Copy,
@@ -195,7 +196,7 @@ def test_examples_lower_cuda():
         out = lower(k)
         assert out.errors() == [], out.findings
         assert out.family == "cuda"
-        assert out.compiler_ver == "0.1.8"
+        assert out.compiler_ver == COMPILER_VER
         assert "__global__" in out.text
         assert out.triton_text and "@triton.jit" in out.triton_text
         assert out.cuda_text == out.text
@@ -366,7 +367,7 @@ def test_materialize_npu_bin_writes_cce_and_sidecar(tmp_path):
     assert pin["kernel"] == "gemm_tile"
     sink = "ccec.aicore" if out.artifact_kind == "npu-bin" else "ascendc.cce"
     assert pin["sink_id"] == sink
-    assert pin["cache_key"]["compiler_ver"] == f"choreoir==0.1.8;{sink}"
+    assert pin["cache_key"]["compiler_ver"] == f"choreoir=={COMPILER_VER};{sink}"
     assert pin["source_sha256"] == out.source_sha256
 
 
@@ -375,7 +376,7 @@ def test_materialize_writes_pin_for_lintel_k(tmp_path):
     out = materialize(k, tmp_path, emit="source")
     pin = json.loads((tmp_path / "pin.json").read_text())
     assert pin["kernel"] == "gemm_tile"
-    assert pin["cache_key"]["compiler_ver"] == "choreoir==0.1.8;cuda.cxx"
+    assert pin["cache_key"]["compiler_ver"] == f"choreoir=={COMPILER_VER};cuda.cxx"
     assert pin["source_sha256"] == out.source_sha256
     assert pin["sink_id"] == "cuda.cxx"
     assert pin["cache_key"]["adapter_id"] == "choreo.v0"
@@ -415,7 +416,7 @@ def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
         assert out.artifact_kind == "source"
     assert (tmp_path / "manifest.json").is_file()
     man = json.loads((tmp_path / "manifest.json").read_text())
-    assert man["compiler_ver"] == "0.1.8"
+    assert man["compiler_ver"] == COMPILER_VER
     assert out.source_sha256
 
 
@@ -461,7 +462,7 @@ def test_materialize_cubin_with_nvcc_is_elf(tmp_path):
     assert pin["artifact_kind"] == "cubin"
     assert pin["artifact_sha256"] == out.artifact_sha256
     assert pin["cache_key"]["graph_hash"].startswith("sha256:")
-    assert pin["cache_key"]["compiler_ver"] == "choreoir==0.1.8;nvcc.cubin"
+    assert pin["cache_key"]["compiler_ver"] == f"choreoir=={COMPILER_VER};nvcc.cubin"
 
 
 def test_find_ccec_discovers_local_bisheng():
@@ -563,7 +564,7 @@ def test_materialize_npu_bin_with_ccec_is_elf(tmp_path):
     assert pin["artifact_kind"] == "npu-bin"
     assert pin["artifact_sha256"] == out.artifact_sha256
     assert pin["cache_key"]["graph_hash"].startswith("sha256:")
-    assert pin["cache_key"]["compiler_ver"] == "choreoir==0.1.8;ccec.aicore"
+    assert pin["cache_key"]["compiler_ver"] == f"choreoir=={COMPILER_VER};ccec.aicore"
     assert pin["family"] == "ascend"
     assert pin["isa"] == "cube.mmad"
     assert pin["arch"] == "davinci"

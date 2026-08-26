@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from choreoir.__main__ import main
+from choreoir.ast import COMPILER_VER
 from choreoir.check import check
 from choreoir.interp import check_value
 from choreoir.jsonio import kernel_from_dict, kernel_to_dict, load_kernel_doc
@@ -16,7 +17,7 @@ def test_pascalcase_ops_roundtrip_to_lowercase():
     raw = {
         "name": "copy",
         "target": "cuda",
-        "compiler_ver": "0.1.8",
+        "compiler_ver": COMPILER_VER,
         "buffers": [
             {
                 "name": "A",
