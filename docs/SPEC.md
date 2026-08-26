@@ -64,7 +64,7 @@ This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kern
 | NVIDIA GPU (M2 sidecar) | `cuda`, `cuda-sm*` | Triton (`print_triton`) | layouts → `BLOCK_*`, partitions → `num_warps`, `Pipeline.depth` → `num_stages`, `Barrier` → `tl.debug_barrier`. Kill switch if cubin never lands. |
 | NVIDIA GPU (cubin-bound stand-in) | `cuda`, `cuda-sm*` | CUDA C++ (`print_cuda`); `nvcc` when present | smem → `__shared__`, Copy → gmem↔onchip loops, Barrier → `__syncthreads`, Pipeline → staged smem, Mma ISA *name* from target. `lower().text` is this source. Not the designed cubin ISA. |
 | Ascend NPU (sidecar) | `ascend*` | TileLang (`print_ascend`) | GM args + spaces → GM/L1/L0C/UB, `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined`. Not the NPU-bin path. |
-| Ascend NPU (NPU-bin-bound stand-in) | `ascend*` | CCE (`print_ascendc`); `ccec` when present | gmem → `__gm__`, Copy → `copy_gm_to_ubuf` / `copy_ubuf_to_gm` (burst from layout), Barrier → `pipe_barrier`, Pipeline → staged loop, Mma ISA *name* `cube.mmad`. `lower().text` is this source. UB stand-in for onchip (like CUDA `float` for dtypes). Not the designed NPU ISA. |
+| Ascend NPU (NPU-bin-bound stand-in) | `ascend*` | CCE (`print_ascendc`); `ccec` when present | gmem → `__gm__`, Copy → `copy_gm_to_ubuf` / `copy_ubuf_to_gm` (burst from layout), Barrier → `pipe_barrier`, Pipeline → staged loop, Mma → `cube.mmad` name + M/N/K loops + UB `vmadd` fallback. `lower().text` is this source. UB stand-in for onchip (like CUDA `float` for dtypes). Not the designed NPU ISA. |
 
 `materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes the cubin/NPU-bin-bound stand-in (`.cu` / `.cce`) plus the Triton / TileLang sidecars, and tries official `nvcc` / `ccec` when present. Success writes a real ELF cubin or elf64-hiipu NPU object and pins `artifact_sha256` next to `source_sha256` / `compiler_ver` for Lintel `%k`. Missing toolchain is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile` — both write results back to gmem (load / math / store partitions). Do not glue NVIDIA and Ascend spaces into one enum. Do not treat homemade PTX/Davinci as the L5 design.
 
@@ -85,7 +85,7 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
 }
 ```
 
-`compiler_ver` on the Kernel JSON is a pin for Lintel `%k`; it is not mutated inside one admit/lower walk. `materialize` writes `pin.json` (`Lowered.as_k()`): kernel, target, family, compiler_ver, source/artifact hashes, adapter_id, graph_hash=null. That is the **payload** Lintel freezes. This tree does not freeze, land, revert, or serve \(F\).
+`compiler_ver` on the Kernel JSON is a pin for Lintel `%k`; it is not mutated inside one admit/lower walk. `materialize` writes `pin.json` (`Lowered.as_k()`): kernel, target, family, compiler_ver, source/artifact hashes, adapter_id, isa, arch, graph_hash=null. That is the **payload** Lintel freezes. This tree does not freeze, land, revert, or serve \(F\).
 
 Kernel JSON (construct / inspect / mutate) is defined by `choreoir.jsonio.kernel_to_dict`. Ops are tagged with `"op": "copy"|"mma"|"reduce"|"barrier"|"pipeline"|"yield"`.
 

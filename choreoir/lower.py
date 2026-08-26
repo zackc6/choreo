@@ -63,6 +63,8 @@ class Lowered:
             "artifact_sha256": self.artifact_sha256 or None,
             "artifact_kind": self.artifact_kind,
             "adapter_id": adapter_id(self.family, self.artifact_kind, self.toolchain),
+            "isa": self.facts.isa if self.facts else None,
+            "arch": self.facts.arch if self.facts else None,
             "graph_hash": None,
         }
 

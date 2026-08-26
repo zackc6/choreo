@@ -3,8 +3,9 @@
 Official `ccec --cce-aicore-only -c` turns this into an elf64-hiipu relocatable
 when the toolchain is present. Not a homemade Davinci object. Not L5 ISA.
 Onchip buffers are UB pointer stand-ins (like CUDA mapping every dtype to float):
-default DAV_M100 aicore-only objects accept GM↔UB copies, not L1/cube mad.
-Choreo spaces stay in comments (smem→L1, mma C→L0C). TileLang is the sidecar.
+this `ccec` object accepts GM↔UB copies and UB vector ops, not L1/cube mad.
+Copy/Barrier/Pipeline/Mma still consume the schedule. Cube mad is later L5.
+TileLang is the sidecar.
 """
 
 from __future__ import annotations
@@ -23,8 +24,9 @@ def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     """Emit CCE that consumes the Choreo schedule.
 
     gmem → __gm__, Copy → copy_gm_to_ubuf / copy_ubuf_to_gm (burst from layout),
-    Barrier → pipe_barrier(PIPE_ALL), Pipeline.depth → staged loop, Mma → named
-    cube.mmad plus M/N/K from layouts (cube mad is later L5 / cube-capable arch).
+    Barrier → pipe_barrier(PIPE_ALL), Pipeline.depth → staged loop, Mma →
+    named cube.mmad plus M/N/K loops and a UB `vmadd` fallback (cube mad is
+    later L5 / cube-capable arch).
     """
     facts = facts or facts_from_kernel(kernel)
     fn = ident(kernel.name)
@@ -196,5 +198,12 @@ def _emit_mma(op: Mma, indent: str, kernel: Kernel, facts: ScheduleFacts) -> lis
         f"{indent}// mma {op.id} {op.c} += {op.a}@{op.b}  isa={facts.isa} "
         f"M={m} K={k} N={n} @{op.partition} role={role} "
         f"{a_sp}@{b_sp}->{c_sp}",
-        f"{indent}// cube mad needs later L5 / cube-capable arch; schedule consumed above",
+        f"{indent}// cube mad needs later L5 / cube-capable arch; UB vmadd fallback",
+        f"{indent}for (int i = 0; i < {m}; ++i) {{",
+        f"{indent}  for (int j = 0; j < {n}; ++j) {{",
+        f"{indent}    for (int kk = 0; kk < {k}; ++kk) {{",
+        f"{indent}      vmadd({op.c}, {op.a}, {op.b}, 1);",
+        f"{indent}    }}",
+        f"{indent}  }}",
+        f"{indent}}}",
     ]

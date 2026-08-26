@@ -76,6 +76,7 @@ def test_cli_print_ascend(capsys):
     assert "copy_gm_to_ubuf" in out
     assert "pipe_barrier(PIPE_ALL)" in out
     assert "cube.mmad" in out
+    assert "vmadd(" in out
     assert "T.gemm" not in out
 
 

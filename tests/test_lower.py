@@ -115,6 +115,8 @@ def test_lower_ascend_gemm_emits_l1_copy_gemm_barrier():
     assert "copy_gm_to_ubuf" in out.text
     assert "pipe_barrier(PIPE_ALL)" in out.text
     assert "cube.mmad" in out.text
+    assert "vmadd(C, As, Bs, 1)" in out.text
+    assert "for (int i = 0; i < 8; ++i)" in out.text
     assert "space=smem → L1" in out.text
     assert "T.gemm(As, Bs, C)" in out.tilelang_text
     assert "alloc_L1" in out.tilelang_text
@@ -191,7 +193,7 @@ def test_examples_lower_cuda():
         out = lower(k)
         assert out.errors() == [], out.findings
         assert out.family == "cuda"
-        assert out.compiler_ver == "0.1.4"
+        assert out.compiler_ver == "0.1.5"
         assert "__global__" in out.text
         assert out.triton_text and "@triton.jit" in out.triton_text
         assert out.cuda_text == out.text
@@ -258,7 +260,7 @@ def test_materialize_npu_bin_writes_cce_and_sidecar(tmp_path):
         assert out.artifact_kind == "source"
     pin = json.loads((tmp_path / "pin.json").read_text())
     assert pin["kernel"] == "gemm_tile"
-    assert pin["compiler_ver"] == "0.1.4"
+    assert pin["compiler_ver"] == "0.1.5"
     assert pin["source_sha256"] == out.source_sha256
 
 
@@ -267,10 +269,12 @@ def test_materialize_writes_pin_for_lintel_k(tmp_path):
     out = materialize(k, tmp_path, emit="source")
     pin = json.loads((tmp_path / "pin.json").read_text())
     assert pin["kernel"] == "gemm_tile"
-    assert pin["compiler_ver"] == "0.1.4"
+    assert pin["compiler_ver"] == "0.1.5"
     assert pin["source_sha256"] == out.source_sha256
     assert pin["adapter_id"] == "cuda.cxx"
     assert pin["graph_hash"] is None
+    assert pin["isa"] == "mma.sync"
+    assert pin["arch"] == "sm_80"
     assert out.as_k() == pin
 
 
@@ -286,7 +290,7 @@ def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
         assert out.artifact_kind == "source"
     assert (tmp_path / "manifest.json").is_file()
     man = json.loads((tmp_path / "manifest.json").read_text())
-    assert man["compiler_ver"] == "0.1.4"
+    assert man["compiler_ver"] == "0.1.5"
     assert out.source_sha256
 
 
@@ -330,7 +334,7 @@ def test_materialize_cubin_with_nvcc_is_elf(tmp_path):
     assert pin["artifact_kind"] == "cubin"
     assert pin["artifact_sha256"] == out.artifact_sha256
     assert pin["graph_hash"] is None
-    assert pin["compiler_ver"] == "0.1.4"
+    assert pin["compiler_ver"] == "0.1.5"
 
 
 def test_find_ccec_discovers_local_bisheng():
@@ -353,6 +357,7 @@ def test_print_ascendc_consumes_copy_barrier_mma_pipeline():
     assert "_stage" in text
     assert "cube.mmad" in text
     assert "role=math" in text
+    assert "vmadd(" in text
     assert "space=smem → L1" in text
 
 
@@ -381,8 +386,11 @@ def test_materialize_npu_bin_with_ccec_is_elf(tmp_path):
     assert pin["artifact_kind"] == "npu-bin"
     assert pin["artifact_sha256"] == out.artifact_sha256
     assert pin["graph_hash"] is None
-    assert pin["compiler_ver"] == "0.1.4"
+    assert pin["compiler_ver"] == "0.1.5"
     assert pin["family"] == "ascend"
+    assert pin["isa"] == "cube.mmad"
+    assert pin["arch"] == "davinci"
+    assert "vmadd(" in (tmp_path / "gemm_tile.cce").read_text()
     assert (tmp_path / "gemm_tile.cce").is_file()
     assert (tmp_path / "gemm_tile.npu.py").is_file()
 

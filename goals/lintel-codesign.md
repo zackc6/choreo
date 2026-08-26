@@ -118,7 +118,7 @@ A compiler object here has to (1) take warp/core roles, barriers, pipeline depth
 
 `choreoir.lower` is admit-gated. `Kernel.target` is required (`cuda` / `cuda-sm*` / `ascend*`). Year-1 allowlist: `copy`, `gemm_tile`.
 
-**Stand-in (today, not the L5 design):** NVIDIA CUDA C++ walk is `lower().text` (cubin-bound); Triton knobs are the M2 sidecar. Ascend CCE walk is `lower().text` (NPU-bin-bound); TileLang-Ascend is the sidecar. Printers must consume `Partition`, `Barrier`, `Pipeline.depth`, layout, space, and gmem writeback. `materialize(..., emit='cubin'|'npu-bin')` runs official `nvcc` / `ccec` when present and pins `artifact_sha256`; missing toolchain is a warning, not a fake binary. `pin.json` (`as_k`) is the `%k` **payload** Lintel freezes; this tree does not freeze.
+**Stand-in (today, not the L5 design):** NVIDIA CUDA C++ walk is `lower().text` (cubin-bound); Triton knobs are the M2 sidecar. Ascend CCE walk is `lower().text` (NPU-bin-bound); TileLang-Ascend is the sidecar. Printers must consume `Partition`, `Barrier`, `Pipeline.depth`, layout, space, gmem writeback, and MMA (CUDA scalar MAC / CCE UB `vmadd` fallback; cube mad is later L5). `materialize(..., emit='cubin'|'npu-bin')` runs official `nvcc` / `ccec` when present and pins `artifact_sha256`; missing toolchain is a warning, not a fake binary. `pin.json` (`as_k`) is the `%k` **payload** Lintel freezes; this tree does not freeze.
 
 **Later design:** the actual cubin / NPU-bin path (how schedule becomes loadable GPU/NPU objects). Until that lands, M2 `@triton.v0` knobs are the GPU stand-in, not a secret second SKU.
 
