@@ -197,6 +197,13 @@ def test_examples_lower_cuda():
         assert "__global__" in out.text
         assert out.triton_text and "@triton.jit" in out.triton_text
         assert out.cuda_text == out.text
+    gemm = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    gout = lower(gemm)
+    assert gout.facts is not None
+    assert gout.facts.num_stages == 3
+    assert "depth=3" in gout.text
+    assert "_stage" in gout.text
+    assert "[3]" in gout.text or "num_stages=3" in gout.triton_text
 
 
 def test_cuda_cpp_consumes_smem_barrier_mma_isa():

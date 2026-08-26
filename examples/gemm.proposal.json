@@ -145,49 +145,56 @@
     ],
     "body": [
       {
-        "op": "copy",
-        "id": "cA",
-        "src": "Ag",
-        "dst": "As",
-        "partition": "load"
-      },
-      {
-        "op": "copy",
-        "id": "cB",
-        "src": "Bg",
-        "dst": "Bs",
-        "partition": "load"
-      },
-      {
-        "op": "barrier",
-        "id": "b0",
-        "wait_for": [
-          "load"
-        ],
-        "arrive": "math"
-      },
-      {
-        "op": "mma",
-        "id": "m0",
-        "a": "As",
-        "b": "Bs",
-        "c": "C",
-        "partition": "math"
-      },
-      {
-        "op": "barrier",
-        "id": "b1",
-        "wait_for": [
-          "math"
-        ],
-        "arrive": "store"
-      },
-      {
-        "op": "copy",
-        "id": "cC",
-        "src": "C",
-        "dst": "Cg",
-        "partition": "store"
+        "op": "pipeline",
+        "id": "p0",
+        "depth": 3,
+        "body": [
+          {
+            "op": "copy",
+            "id": "cA",
+            "src": "Ag",
+            "dst": "As",
+            "partition": "load"
+          },
+          {
+            "op": "copy",
+            "id": "cB",
+            "src": "Bg",
+            "dst": "Bs",
+            "partition": "load"
+          },
+          {
+            "op": "barrier",
+            "id": "b0",
+            "wait_for": [
+              "load"
+            ],
+            "arrive": "math"
+          },
+          {
+            "op": "mma",
+            "id": "m0",
+            "a": "As",
+            "b": "Bs",
+            "c": "C",
+            "partition": "math"
+          },
+          {
+            "op": "barrier",
+            "id": "b1",
+            "wait_for": [
+              "math"
+            ],
+            "arrive": "store"
+          },
+          {
+            "op": "copy",
+            "id": "cC",
+            "src": "C",
+            "dst": "Cg",
+            "partition": "store"
+          }
+        ]
       },
       {
         "op": "yield",

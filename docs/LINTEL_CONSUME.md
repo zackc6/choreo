@@ -15,7 +15,7 @@ python3 -m choreoir pin /tmp/out/pin.json
 python3 -m choreoir lower examples/gemm.json -o /tmp/npu --target ascend-a2 --emit npu-bin
 ```
 
-Year-1 allowlist: `copy`, `gemm_tile`. Face `adapter_id`: `choreo.v0`.
+Year-1 allowlist: `copy`, `gemm_tile` (`Pipeline.depth=3` on gemm). Face `adapter_id`: `choreo.v0`.
 
 Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower --emit`):
 
