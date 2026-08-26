@@ -85,7 +85,7 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
 }
 ```
 
-`compiler_ver` on the Kernel JSON is the **choreoir** pin; it is not mutated inside one admit/lower walk. Lintel `%k` (`cache-key.v0`) names **both** that pin and the sink: `choreoir==0.1.11;nvcc.cubin`. `materialize` writes `pin.json` (`Lowered.as_k()`):
+`compiler_ver` on the Kernel JSON is the **choreoir** pin; it is not mutated inside one admit/lower walk. Lintel `%k` (`cache-key.v0`) names **both** that pin and the sink: `choreoir==0.1.12;nvcc.cubin`. `materialize` writes `pin.json` (`Lowered.as_k()`):
 
 ```json
 {
@@ -94,7 +94,7 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
     "schema_version": "cache-key.v0",
     "graph_hash": "sha256:…",
     "hw_id": "nvidia.sm_80",
-    "compiler_ver": "choreoir==0.1.11;nvcc.cubin",
+    "compiler_ver": "choreoir==0.1.12;nvcc.cubin",
     "adapter_id": "choreo.v0",
     "policy_id": "lintel.specialize.v0"
   },
