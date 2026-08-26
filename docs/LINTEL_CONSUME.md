@@ -83,9 +83,11 @@ Rewriting `check.py` mid-walk is M3. Forbidden here.
 | JSON serde unpublished | `choreoir.jsonio`; lowercase ops canonical |
 | Z3 / thread CEX | Still v2. Not year-1 |
 
-Also stale: “one NVIDIA binary first” as a *Choreo* gap; “Triton-first sink”; “choreo PR” as the evolve path; `compiler_ver` examples `choreoir==0.1.0;triton==3.3.0+cu128`. Prefer `choreoir==0.1.8;nvcc.cubin`. Lintel PoC `acme_attn_prefill.choreo.json` still uses a marker `Pipeline` with empty `body` (PascalCase ops, no `target`); live `choreo propose` on that envelope is now `reject.where=W` at `pipe0`.
+Also stale on **origin** lintel `fda2db2`: “one NVIDIA binary first” as a *Choreo* gap; “Triton-first sink”; “choreo PR” as the evolve path; `compiler_ver` examples `choreoir==0.1.0;triton==3.3.0+cu128`. Prefer `choreoir==0.1.8;nvcc.cubin`. Origin PoC `acme_attn_prefill.choreo.json` still uses a marker `Pipeline` with empty `body` (PascalCase ops, no `target`); live `choreo propose` on that envelope is `{where: W}` at `pipe0`.
 
-Files on the Lintel side that should absorb this (when write access exists): `docs/CHOREO.md`, `docs/DATA_PLANE.md`, `docs/ADAPTERS.md`, `docs/YEAR1.md`, `docs/SURVEY_MATCH.md`, `docs/LINTEL_IR.md`, `examples/admit-record.json` `compiler_ver` / `adapter_id`, adapter-proposal op enum.
+A consume absorb (nested `Pipeline.body`, lowercase ops, `choreoir==0.1.8;nvcc.cubin`, year-1 `examples/choreo/{copy,gemm}.json`, T5 = commit on `choreoir` `main`) is committed locally as lintel `6fc4513` but **cannot be pushed** (`cursor[bot]` 403). Land that commit on lintel `main` when write exists. Do not add `src/` or vendor `choreoir`.
+
+Files on the Lintel side that should absorb this: `docs/CHOREO.md`, `docs/DATA_PLANE.md`, `docs/ADAPTERS.md`, `docs/YEAR1.md`, `docs/SURVEY_MATCH.md`, `docs/LINTEL_IR.md`, `examples/admit-record.json` `compiler_ver` / `adapter_id`, `schemas/adapter-proposal.v0.schema.json` op enum, `examples/poc/*.choreo.json`, `examples/choreo/`.
 
 ## Never in this tree
 
