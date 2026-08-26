@@ -14,6 +14,8 @@ from pathlib import Path
 from choreoir.check import check
 from choreoir.interp import check_value
 from choreoir.jsonio import kernel_from_dict
+from choreoir.lower import find_ccec, find_nvcc, materialize
+from choreoir.pin import cache_key_digest
 from choreoir.propose import adapter_proposal
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -99,3 +101,32 @@ def test_value_findings_stay_opt_in():
         json.loads((FAILS / "value_mismatch.expected.json").read_text()),
     )
     assert any(f.gate == "V" for f in fs)
+
+
+def test_per_target_sinks_split_cache_key(tmp_path):
+    """Same copy Kernel, two sinks → two %k. Not a second face. Not a third kernel."""
+    import pytest
+
+    if find_nvcc() is None or find_ccec() is None:
+        pytest.skip("need official nvcc and ccec")
+    src = json.loads((ROOT / "examples" / "copy.json").read_text())
+    nv = kernel_from_dict(src)
+    npu = kernel_from_dict(src)
+    npu.target = "ascend-a2"
+    cubin = materialize(nv, tmp_path / "nv", emit="cubin")
+    bin_ = materialize(npu, tmp_path / "npu", emit="npu-bin")
+    assert cubin.artifact_kind == "cubin" and not cubin.errors(), cubin.findings
+    assert bin_.artifact_kind == "npu-bin" and not bin_.errors(), bin_.findings
+    nv_pin = json.loads((tmp_path / "nv" / "pin.json").read_text())
+    npu_pin = json.loads((tmp_path / "npu" / "pin.json").read_text())
+    assert nv_pin["cache_key"]["adapter_id"] == npu_pin["cache_key"]["adapter_id"] == "choreo.v0"
+    assert nv_pin["kernel"] == npu_pin["kernel"] == "copy"
+    assert nv_pin["sink_id"] == "nvcc.cubin"
+    assert npu_pin["sink_id"] == "ccec.aicore"
+    assert nv_pin["cache_key"]["hw_id"].startswith("nvidia.")
+    assert npu_pin["cache_key"]["hw_id"] == "ascend.davinci"
+    assert nv_pin["cache_key_digest"] != npu_pin["cache_key_digest"]
+    assert nv_pin["cache_key_digest"] == cache_key_digest(nv_pin["cache_key"])
+    assert npu_pin["cache_key_digest"] == cache_key_digest(npu_pin["cache_key"])
+    assert Path(cubin.artifact_path).read_bytes()[:4] == b"\x7fELF"
+    assert Path(bin_.artifact_path).read_bytes()[:4] == b"\x7fELF"

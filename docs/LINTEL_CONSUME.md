@@ -105,6 +105,7 @@ A consume absorb is committed locally on lintel `main` but **cannot be pushed** 
 - `4078eba` adapter-fail `propose`/`gate` store Finding JSON; session log walks W (`pipeline_empty`) / L (`layout_cover`) / S (`sync_race`) / V (`value_mismatch`); T5-lite table maps those `{where}` letters to CFG reject vs a commit on this `main`
 - `54d1dbd` propose payload kernel is the full AST (name/buffers/partitions/body), not a name stub; session-event schema requires those fields
 - `a89e5d4` freeze artifact is nvcc cubin (kind cubin, copy.cubin / gemm_tile.cubin), not a .py; digest is pin.artifact_sha256
+- `ae62bae` same copy Kernel on Ascend is a new %k (ccec.aicore / npu-bin); year-1 live search stays NVIDIA
 
 Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`.
 
