@@ -1,0 +1,83 @@
+# Choreo IR spec (v0.1)
+
+Status: draft. Data-plane object only. No agent protocol in this file.
+
+## 1. Design rules
+
+1. **One band.** Choreo is an L4 kernel IR. It does not represent framework graphs, MLIR pass pipelines, CUDA Graphs, or agent DAGs.
+2. **Structured, not textual.** The source of truth is the AST. Pretty-printers exist for humans; agents must not round-trip through dumped Triton/CUDA as the mutation API.
+3. **Enumerate mutations.** Ops, memory spaces, partition roles, and barrier kinds are closed enums in v1. New hardware enters as new op/intrinsic variants (TIRx: intrinsics first), not free SSA.
+4. **Admit before codegen.** `check(kernel) -> list[Finding]` is total. Codegen is refused if any finding has `severity=error`.
+5. **Localized findings.** Each error names a node id. Layout/sync errors may also name `thread` and `element` (Argus-shaped). No “see stderr.”
+6. **Lowering is classical.** Interpreter and printers are deterministic functions of the AST. They are not LLM calls.
+
+## 2. Core sorts
+
+```text
+Kernel      = { name, params, buffers, partitions, body, attrs }
+Param       = { name, dtype, shape }            # shape may contain symbols
+Buffer      = { name, space, layout, dtype }
+Layout      = { shape, stride }                 # CuTe-style pair; v1: static ints
+Partition   = { name, role, width }             # width = warps or threads
+Op          = Copy | Mma | Reduce | Barrier | Pipeline | Yield
+Space       = gmem | smem | tmem | regs
+Role        = load | math | store | generic
+```
+
+`body` is a straight-line list of ops plus structured `Pipeline` regions. v1 has **no** unstructured CFG. LLM4IR’s CFG-edge failure is treated as a language bug to avoid, not a benchmark to dump into the prompt.
+
+## 3. What the LLM may emit (when a later agent exists)
+
+Allowed:
+
+- Create/replace a `Kernel` AST (or a JSON encoding of it).
+- Edit enumerated fields: tile sizes, partition widths, pipeline depth, layout strides, which `Copy`/`Mma` variant.
+
+Forbidden (in this IR, forever):
+
+- Embed raw PTX/CUDA/Triton strings as the program.
+- Emit pass lists, MCP tool calls, or serving-level A/B policy.
+- Invent new memory spaces or roles without a spec bump.
+
+## 4. Admit pipeline (W → L → S → V)
+
+| Gate | Question | Failure shape |
+|---|---|---|
+| **W** wellformed | Types, ranks, every buffer used, every partition named, no unknown ops | `{node, msg}` |
+| **L** layout | `size(layout) == numel(buffer)`; copy src/dst layouts compose; MMA fragments match dtype | `{node, element?, msg}` |
+| **S** sync | Every cross-partition `Copy`/`Mma` has a dominating `Barrier`; no cyclic wait | `{node, partition?, msg}` |
+| **V** value-sim | Interpreter on a tiny concrete shape matches a reference `numpy` kernel | `{node, index?, expected, got}` |
+
+v1 implements W fully, L for static shapes, S for barrier pairing, V for `Copy` and a naive `Mma` on CPU. SMT (Argus Z3) is v2: same finding schema, heavier solver.
+
+These gates are **T2-color signals**, not serving oracles (T6). Passing V does not mean SGLang A/B.
+
+## 5. Lowering
+
+| Target | When |
+|---|---|
+| CPU interpreter | v1, always on |
+| Triton printer | first *device* sink (C4-A ecosystem, Inductor default) |
+| CUDA C++ / Gluon / TLX / TileLang / HIP | plugins, v2 — do not fork a new execution ISA |
+
+Choreo **storage layout** is an explicit contract consumed by the printer (TIRx-like). Work partitioning lives in `Partition` + `Layout`, not in a hidden compiler pass (Gluon-like explicitness, Cake-like roles).
+
+## 6. JSON finding schema
+
+```json
+{
+  "gate": "W|L|S|V",
+  "severity": "error|warning",
+  "node": "op.3",
+  "partition": "load0",
+  "thread": null,
+  "element": [0, 1],
+  "msg": "smem layout stride does not cover K"
+}
+```
+
+This is the only feedback surface intended for a future agent. Not a control-plane API: it is compiler diagnostics.
+
+## 7. Out of spec
+
+Event Tensor / persistent megakernels, cluster launch, power/energy objectives, artifact hashing for CI replay, agent-search rungs. Those attach *above* or *beside* this IR (L6, L7, T3, control plane).

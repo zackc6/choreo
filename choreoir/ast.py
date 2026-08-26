@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Literal
+
+Space = Literal["gmem", "smem", "tmem", "regs"]
+Role = Literal["load", "math", "store", "generic"]
+Dtype = Literal["f16", "bf16", "f32", "f8"]
+
+
+@dataclass(frozen=True)
+class Layout:
+    """Shape × stride. v1: static positive ints (CuTe-style pair, no algebra library)."""
+
+    shape: tuple[int, ...]
+    stride: tuple[int, ...]
+
+    def numel(self) -> int:
+        n = 1
+        for s in self.shape:
+            n *= s
+        return n
+
+
+@dataclass(frozen=True)
+class Param:
+    name: str
+    dtype: Dtype
+    shape: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class Buffer:
+    name: str
+    space: Space
+    layout: Layout
+    dtype: Dtype
+
+
+@dataclass(frozen=True)
+class Partition:
+    name: str
+    role: Role
+    width: int  # warps in v1
+
+
+@dataclass(frozen=True)
+class Copy:
+    id: str
+    src: str
+    dst: str
+    partition: str
+
+
+@dataclass(frozen=True)
+class Mma:
+    id: str
+    a: str
+    b: str
+    c: str
+    partition: str
+
+
+@dataclass(frozen=True)
+class Barrier:
+    id: str
+    wait_for: tuple[str, ...]  # partition names that must complete
+    arrive: str  # partition that waits
+
+
+@dataclass(frozen=True)
+class Pipeline:
+    id: str
+    depth: int
+    body: tuple[object, ...]
+
+
+Op = Copy | Mma | Barrier | Pipeline
+
+
+@dataclass
+class Kernel:
+    name: str
+    params: tuple[Param, ...] = ()
+    buffers: tuple[Buffer, ...] = ()
+    partitions: tuple[Partition, ...] = ()
+    body: tuple[Op, ...] = ()
+    attrs: dict[str, str] = field(default_factory=dict)
+
+    def buffer(self, name: str) -> Buffer | None:
+        return next((b for b in self.buffers if b.name == name), None)
+
+    def partition(self, name: str) -> Partition | None:
+        return next((p for p in self.partitions if p.name == name), None)
