@@ -15,7 +15,7 @@ def test_pascalcase_ops_roundtrip_to_lowercase():
     raw = {
         "name": "copy",
         "target": "cuda",
-        "compiler_ver": "0.1.6",
+        "compiler_ver": "0.1.7",
         "buffers": [
             {
                 "name": "A",

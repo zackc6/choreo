@@ -193,7 +193,7 @@ def test_examples_lower_cuda():
         out = lower(k)
         assert out.errors() == [], out.findings
         assert out.family == "cuda"
-        assert out.compiler_ver == "0.1.6"
+        assert out.compiler_ver == "0.1.7"
         assert "__global__" in out.text
         assert out.triton_text and "@triton.jit" in out.triton_text
         assert out.cuda_text == out.text
@@ -262,7 +262,7 @@ def test_materialize_npu_bin_writes_cce_and_sidecar(tmp_path):
     assert pin["kernel"] == "gemm_tile"
     sink = "ccec.aicore" if out.artifact_kind == "npu-bin" else "ascendc.cce"
     assert pin["sink_id"] == sink
-    assert pin["cache_key"]["compiler_ver"] == f"choreoir==0.1.6;{sink}"
+    assert pin["cache_key"]["compiler_ver"] == f"choreoir==0.1.7;{sink}"
     assert pin["source_sha256"] == out.source_sha256
 
 
@@ -271,7 +271,7 @@ def test_materialize_writes_pin_for_lintel_k(tmp_path):
     out = materialize(k, tmp_path, emit="source")
     pin = json.loads((tmp_path / "pin.json").read_text())
     assert pin["kernel"] == "gemm_tile"
-    assert pin["cache_key"]["compiler_ver"] == "choreoir==0.1.6;cuda.cxx"
+    assert pin["cache_key"]["compiler_ver"] == "choreoir==0.1.7;cuda.cxx"
     assert pin["source_sha256"] == out.source_sha256
     assert pin["sink_id"] == "cuda.cxx"
     assert pin["cache_key"]["adapter_id"] == "choreo.v0"
@@ -281,6 +281,22 @@ def test_materialize_writes_pin_for_lintel_k(tmp_path):
     assert pin["isa"] == "mma.sync"
     assert pin["arch"] == "sm_80"
     assert out.as_k() == pin
+
+
+def test_pin_isa_follows_schedule_not_family():
+    copy = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    gpu = lower(copy)
+    assert gpu.facts is not None
+    assert gpu.facts.isa == "copy"
+    assert gpu.as_k()["isa"] == "copy"
+    copy.target = "ascend-a2"
+    npu = lower(copy)
+    assert npu.facts is not None
+    assert npu.facts.isa == "copy.ubuf"
+    gemm = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    assert lower(gemm).as_k()["isa"] == "mma.sync"
+    gemm.target = "ascend-a2"
+    assert lower(gemm).as_k()["isa"] == "cube.mmad"
 
 
 def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
@@ -295,7 +311,7 @@ def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
         assert out.artifact_kind == "source"
     assert (tmp_path / "manifest.json").is_file()
     man = json.loads((tmp_path / "manifest.json").read_text())
-    assert man["compiler_ver"] == "0.1.6"
+    assert man["compiler_ver"] == "0.1.7"
     assert out.source_sha256
 
 
@@ -341,7 +357,7 @@ def test_materialize_cubin_with_nvcc_is_elf(tmp_path):
     assert pin["artifact_kind"] == "cubin"
     assert pin["artifact_sha256"] == out.artifact_sha256
     assert pin["cache_key"]["graph_hash"].startswith("sha256:")
-    assert pin["cache_key"]["compiler_ver"] == "choreoir==0.1.6;nvcc.cubin"
+    assert pin["cache_key"]["compiler_ver"] == "choreoir==0.1.7;nvcc.cubin"
 
 
 def test_find_ccec_discovers_local_bisheng():
@@ -394,7 +410,7 @@ def test_materialize_npu_bin_with_ccec_is_elf(tmp_path):
     assert pin["artifact_kind"] == "npu-bin"
     assert pin["artifact_sha256"] == out.artifact_sha256
     assert pin["cache_key"]["graph_hash"].startswith("sha256:")
-    assert pin["cache_key"]["compiler_ver"] == "choreoir==0.1.6;ccec.aicore"
+    assert pin["cache_key"]["compiler_ver"] == "choreoir==0.1.7;ccec.aicore"
     assert pin["family"] == "ascend"
     assert pin["isa"] == "cube.mmad"
     assert pin["arch"] == "davinci"

@@ -108,9 +108,21 @@ def facts_from_kernel(kernel: Kernel) -> ScheduleFacts:
 
     family = target_family(kernel.target) or ""
     if family == "ascend":
-        isa, arch = npu_isa(kernel.target), "davinci"
+        arch = "davinci"
+        if mmas:
+            isa = npu_isa(kernel.target)
+        elif copies:
+            isa = "copy.ubuf"
+        else:
+            isa = "none"
     else:
-        isa, arch = nv_mma_isa(kernel.target), nv_arch(kernel.target)
+        arch = nv_arch(kernel.target)
+        if mmas:
+            isa = nv_mma_isa(kernel.target)
+        elif copies:
+            isa = "copy"
+        else:
+            isa = "none"
     return ScheduleFacts(
         target=kernel.target,
         family=family,

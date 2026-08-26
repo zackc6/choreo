@@ -106,7 +106,7 @@ class Kernel:
     body: tuple[Op, ...] = ()
     attrs: dict[str, str] = field(default_factory=dict)
     target: str = ""  # cuda | cuda-sm90 | cuda-sm100 | ascend-a2 | ...
-    compiler_ver: str = "0.1.6"  # choreoir pin; not mutated inside one walk. %k combines this with the sink.
+    compiler_ver: str = "0.1.7"  # choreoir pin; not mutated inside one walk. %k combines this with the sink.
 
     def buffer(self, name: str) -> Buffer | None:
         return next((b for b in self.buffers if b.name == name), None)

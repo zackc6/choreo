@@ -14,7 +14,7 @@ def test_examples_roundtrip_and_admit():
         assert check(k) == []
         again = kernel_from_dict(kernel_to_dict(k))
         assert kernel_to_dict(again) == kernel_to_dict(k)
-        assert kernel_to_dict(k)["compiler_ver"] == "0.1.6"
+        assert kernel_to_dict(k)["compiler_ver"] == "0.1.7"
 
 
 def test_compiler_ver_roundtrip_pin():

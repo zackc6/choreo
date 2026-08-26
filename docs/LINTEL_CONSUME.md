@@ -30,7 +30,7 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 | Field | This tree emits | Not |
 |---|---|---|
 | `adapter_id` | `choreo.v0` | `nvcc.cubin` (that is `sink_id`) |
-| `compiler_ver` | `choreoir==0.1.6;nvcc.cubin` or `…;ccec.aicore` | Kernel-only `0.1.6` inside the key |
+| `compiler_ver` | `choreoir==0.1.7;nvcc.cubin` or `…;ccec.aicore` | Kernel-only `0.1.7` inside the key |
 | `hw_id` | `nvidia.sm_*` / `ascend.davinci`, or `--hw-id` | `Kernel.target` |
 | `graph_hash` | `sha256(lintel.graph.unspecified)` unless stamped | hash of Kernel JSON |
 | `policy_id` | `lintel.specialize.v0` (handshake slot) | |
@@ -75,7 +75,7 @@ Rewriting `check.py` mid-walk is M3. Forbidden here.
 | JSON serde unpublished | `choreoir.jsonio`; lowercase ops canonical |
 | Z3 / thread CEX | Still v2. Not year-1 |
 
-Also stale: “one NVIDIA binary first” as a *Choreo* gap; “Triton-first sink”; “choreo PR” as the evolve path; `compiler_ver` examples `choreoir==0.1.0;triton==3.3.0+cu128`. Prefer `choreoir==0.1.6;nvcc.cubin`.
+Also stale: “one NVIDIA binary first” as a *Choreo* gap; “Triton-first sink”; “choreo PR” as the evolve path; `compiler_ver` examples `choreoir==0.1.0;triton==3.3.0+cu128`. Prefer `choreoir==0.1.7;nvcc.cubin`.
 
 Files on the Lintel side that should absorb this (when write access exists): `docs/CHOREO.md`, `docs/DATA_PLANE.md`, `docs/ADAPTERS.md`, `docs/YEAR1.md`, `docs/SURVEY_MATCH.md`, `docs/LINTEL_IR.md`, `examples/admit-record.json` `compiler_ver` / `adapter_id`, adapter-proposal op enum.
 

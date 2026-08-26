@@ -46,7 +46,7 @@ def test_default_graph_hash_is_unspecified_not_kernel_json(tmp_path):
     assert key["graph_hash"] != kernel_digest
     assert pin["target"] == "cuda"
     assert pin["sink_id"] == "cuda.cxx"
-    assert key["compiler_ver"] == "choreoir==0.1.6;cuda.cxx"
+    assert key["compiler_ver"] == "choreoir==0.1.7;cuda.cxx"
     assert key["hw_id"] == "nvidia.sm_80"
     assert key["policy_id"] == POLICY_ID_DEFAULT
 
