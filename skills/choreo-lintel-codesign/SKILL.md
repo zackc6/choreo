@@ -9,7 +9,7 @@ description: >-
 
 # Choreo × Lintel co-design
 
-Read [`goals/lintel-codesign.md`](../../goals/lintel-codesign.md) for the product cut. This skill is the implementer SOP for **this repo**.
+Read [`goals/lintel-codesign.md`](goals/lintel-codesign.md) for the product cut. This skill is the implementer SOP for **this repo**.
 
 ## When to use
 
@@ -99,8 +99,8 @@ When changing this repo, ask:
 
 ## Pointers
 
-- Goal: `goals/lintel-codesign.md`
-- Grammar / admit: `docs/SPEC.md`
+- Goal: [`goals/lintel-codesign.md`](goals/lintel-codesign.md)
+- Grammar / admit: [`docs/SPEC.md`](docs/SPEC.md)
 - AST / check / printer: `choreoir/`
 - Cake: arXiv:2608.12629
 - Argus: arXiv:2604.18616
