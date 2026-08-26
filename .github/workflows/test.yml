@@ -11,11 +11,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: cache-nvcc
         with:
           path: ~/.local/cuda-nvcc
           key: cuda-nvcc-linux-x86_64-12.8.93-cudart-12.8.90
-          save-always: true
       - run: python3 -m pip install -e ".[dev]"
       - name: Official nvcc (NVIDIA cubin sink)
         env:
@@ -23,6 +23,12 @@ jobs:
         run: |
           python3 -c "from choreoir.toolchain import ensure_nvcc; import sys; p=ensure_nvcc(); print(p or 'nvcc-missing'); sys.exit(0 if p else 1)"
           echo "$HOME/.local/cuda-nvcc/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/cuda-nvcc/bin/nvcc" -V
+      - uses: actions/cache/save@v4
+        if: steps.cache-nvcc.outputs.cache-hit != 'true'
+        with:
+          path: ~/.local/cuda-nvcc
+          key: cuda-nvcc-linux-x86_64-12.8.93-cudart-12.8.90
       - name: pytest (cubin required; ccec not a public redist)
         env:
           CHOREO_REQUIRE_NVCC: "1"
