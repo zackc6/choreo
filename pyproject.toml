@@ -1,6 +1,6 @@
 [project]
 name = "choreoir"
-version = "0.1.12"
+version = "0.1.13"
 description = "Typed kernel choreography IR: Lintel's L4 compiler object (check, sim, lower to NVIDIA GPU and Ascend NPU)."
 readme = "README.md"
 requires-python = ">=3.11"

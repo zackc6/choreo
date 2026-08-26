@@ -98,7 +98,7 @@ Op = Copy | Mma | Reduce | Barrier | Pipeline | Yield
 
 # Pinned on the Kernel and as the installable package version. Bump when
 # admit or a year-1 sink that changes the cubin/NPU-bin object changes.
-COMPILER_VER = "0.1.12"
+COMPILER_VER = "0.1.13"
 
 
 @dataclass

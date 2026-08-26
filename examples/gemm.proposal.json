@@ -3,7 +3,7 @@
   "adapter_id": "choreo.v0",
   "graph_hash": "sha256:da10ec6e5ccfe27c7ee10f4fe4db4a5d41588fe4a0e4d8de08dc7ad0cadbf300",
   "hw_id": "nvidia.sm_80",
-  "compiler_ver": "choreoir==0.1.12;cuda.cxx",
+  "compiler_ver": "choreoir==0.1.13;cuda.cxx",
   "enum_id": "gemm_tile",
   "kernel": {
     "name": "gemm_tile",
@@ -207,7 +207,7 @@
     "attrs": {
       "tile": "2x2"
     },
-    "compiler_ver": "0.1.12"
+    "compiler_ver": "0.1.13"
   },
   "gates": [
     "W",
