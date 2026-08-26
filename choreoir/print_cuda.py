@@ -14,7 +14,8 @@ def print_cuda(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     """Emit CUDA C++ that consumes the Choreo schedule.
 
     smem → __shared__, Copy → gmem↔onchip index loops, Barrier → __syncthreads,
-    Pipeline.depth → staged shared arrays, Partition.width → __launch_bounds__
+    Pipeline.depth → staged shared arrays (attrs.num_stages is the Triton sidecar
+    and does not unstage this reservation), Partition.width → __launch_bounds__
     and thread-strided loops (width warps × 32), Mma → scalar MAC plus named ISA
     (mma.sync / wgmma.mma_async / tcgen05.mma) from Kernel.target, Reduce →
     nested sum over axis.
@@ -72,10 +73,10 @@ def _decl_onchip(buf: Buffer, facts: ScheduleFacts) -> str:
     dims = "".join(f"[{d}]" for d in buf.layout.shape) or "[1]"
     note = f"  // choreo dtype={buf.dtype}"
     if buf.space == "smem":
-        if facts.num_stages > 1:
+        if facts.pipeline_depth > 1:
             return (
-                f"__shared__ {ty} {buf.name}{dims}[{facts.num_stages}];"
-                f"  // pipeline depth={facts.num_stages}{note}"
+                f"__shared__ {ty} {buf.name}{dims}[{facts.pipeline_depth}];"
+                f"  // pipeline depth={facts.pipeline_depth}{note}"
             )
         return f"__shared__ {ty} {buf.name}{dims};{note}"
     if buf.space == "tmem":
@@ -165,7 +166,7 @@ def _buf_ref(buf: Buffer, names: list[str], facts: ScheduleFacts) -> str:
         lin = " + ".join(f"{nm} * {s}" for nm, s in zip(names, buf.layout.stride)) or "0"
         return f"{buf.name}[{lin}]"
     idx = "".join(f"[{nm}]" for nm in names)
-    stage = "[_stage]" if facts.num_stages > 1 and buf.space == "smem" else ""
+    stage = "[_stage]" if facts.pipeline_depth > 1 and buf.space == "smem" else ""
     return f"{buf.name}{idx}{stage}"
 
 

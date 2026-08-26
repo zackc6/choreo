@@ -27,7 +27,8 @@ def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     ``dst.layout.shape`` with addresses from shape×stride (CUDA Copy does
     the same; year-1 ``copy`` is Copy-only), Barrier → pipe_barrier(PIPE_ALL),
     Pipeline.depth → staged loop **and** staged UB span for smem (CUDA stages
-    ``__shared__[depth]``), Partition.width → ``block_idx < width`` (year-1
+    ``__shared__[depth]``; ``attrs.num_stages`` is the Triton sidecar and does
+    not unstage this reservation), Partition.width → ``block_idx < width`` (year-1
     launch is one aicore so core 0 always runs), Mma → named cube.mmad plus
     M/N/K loops and a UB ``vmadd`` fallback indexed by layout stride (cube
     mad is later L5 / cube-capable arch), Reduce → nested loops over ``axis``
@@ -61,8 +62,8 @@ def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
         base = bases[b.name]
         label = _space_label(b, kernel)
         stage_note = ""
-        if facts.num_stages > 1 and b.space == "smem":
-            stage_note = f"  pipeline stages={facts.num_stages} span={_stage_span_elems(b)}"
+        if facts.pipeline_depth > 1 and b.space == "smem":
+            stage_note = f"  pipeline stages={facts.pipeline_depth} span={_stage_span_elems(b)}"
         lines.append(
             f"  __ubuf__ {_C_DTYPE}* {b.name} = (__ubuf__ {_C_DTYPE}*){base};"
             f"  // Choreo space={b.space} → {label} stand-in UB base {base}"
@@ -98,7 +99,7 @@ def _stage_span_elems(buf: Buffer) -> int:
 def _onchip_bases(kernel: Kernel, facts: ScheduleFacts) -> dict[str, int]:
     bases: dict[str, int] = {}
     off = 0
-    stages = max(facts.num_stages, 1)
+    stages = max(facts.pipeline_depth, 1)
     for buf in kernel.buffers:
         if buf.space == "gmem":
             continue
@@ -117,7 +118,7 @@ def _ub_ptr(name: str, kernel: Kernel, facts: ScheduleFacts) -> str:
     buf = kernel.buffer(name)
     if buf is None:
         return name
-    if facts.num_stages > 1 and buf.space == "smem":
+    if facts.pipeline_depth > 1 and buf.space == "smem":
         return f"({name} + _stage * {_stage_span_elems(buf)})"
     return name
 

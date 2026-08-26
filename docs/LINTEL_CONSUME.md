@@ -72,7 +72,7 @@ Canonical Kernel JSON is lowercase ops (`copy`, `mma`, …). Lintel examples tha
 | NVIDIA | CUDA C++ (`print_cuda`) | official `nvcc -cubin` → ELF cubin | Triton knobs |
 | Ascend | CCE (`print_ascendc`) | official `ccec --cce-aicore-only -c` → elf64-hiipu | TileLang |
 
-Sinks consume `Partition` (width → CUDA `__launch_bounds__` / thread stride; CCE `block_idx < width`), `Barrier`, `Pipeline.depth` (CUDA stages `__shared__[depth]`; CCE stages smem UB span × depth), layout, space, gmem writeback, Copy (CUDA gmem↔onchip index loops / CCE `copy_*` nested over shape, both indexed by layout stride), MMA (CUDA scalar MAC / CCE `vmadd` fallback indexed by layout stride), and `Reduce` (CUDA per-thread dst sum; CCE `vector_dup`/`vadd` because aicore rejects scalar `+=`). Missing toolchain = warning, not a fake binary. **M2 `@triton.v0` knobs are standby** because a year-1 NVIDIA cubin has landed (stand-in path, not the later L5 ISA design). The Triton sidecar walks `Copy` / `Barrier` / `Pipeline` / `Mma` / `Reduce` (not the first-op stencil); it is still not `lower().text`.
+Sinks consume `Partition` (width → CUDA `__launch_bounds__` / thread stride; CCE `block_idx < width`), `Barrier`, `Pipeline.depth` (CUDA stages `__shared__[depth]`; CCE stages smem UB span × depth; `attrs.num_stages` is the Triton sidecar and must not unstage those reservations), layout, space, gmem writeback, Copy (CUDA gmem↔onchip index loops / CCE `copy_*` nested over shape, both indexed by layout stride), MMA (CUDA scalar MAC / CCE `vmadd` fallback indexed by layout stride), and `Reduce` (CUDA per-thread dst sum; CCE `vector_dup`/`vadd` because aicore rejects scalar `+=`). Missing toolchain = warning, not a fake binary. **M2 `@triton.v0` knobs are standby** because a year-1 NVIDIA cubin has landed (stand-in path, not the later L5 ISA design). The Triton sidecar walks `Copy` / `Barrier` / `Pipeline` / `Mma` / `Reduce` (not the first-op stencil); it is still not `lower().text`. Year-1 `copy` gmem stride is in the cubin because that kernel stores back to gmem; helper kernels with no store are not a CUDA cubin-stride oracle (`nvcc` DCEs them).
 
 Lintel YEAR1 “Ascend waits until one NVIDIA cubin” is **satisfied** as a prerequisite. Dual-live *search* is still Lintel's call; this tree **always** lowers to both families. Public CI on this `main` fetches official nvcc and fails if cubin tests would skip (`CHOREO_REQUIRE_NVCC=1`). That is not Lintel `compile_ok`. `ccec` is not a public redist; NPU-bin ELF tests skip on GitHub. Two `%k` for the same `copy` Kernel still run there: pin helpers + the land/sibling freeze addresses (`sha256:20785880…` / `sha256:35a48584…`).
 
@@ -93,7 +93,7 @@ Rewriting `check.py` mid-walk is M3. Forbidden here.
 |---|---|
 | `print_triton` is a stencil; no cubin | NVIDIA ELF cubin via `nvcc`; Triton is sidecar |
 | MMA V not a year-1 gate | V for `Copy` / `Mma` / `Reduce` (`choreo check --tensors --expected`) |
-| Pipeline.depth not consumed | CUDA C++ stages `__shared__[depth]`; CCE stages smem UB span × depth |
+| Pipeline.depth not consumed | CUDA C++ stages `__shared__[depth]`; CCE stages smem UB span × depth (`attrs.num_stages` does not unstage) |
 | JSON serde unpublished | `choreoir.jsonio`; lowercase ops canonical |
 | Z3 / thread CEX | Still v2. Not year-1 |
 

@@ -104,6 +104,7 @@ def test_lower_cuda_pipeline_depth_is_num_stages():
     assert out.errors() == []
     assert out.facts is not None
     assert out.facts.num_stages == 3
+    assert out.facts.pipeline_depth == 3
     assert "num_stages=3" in out.triton_text
     assert "for _stage in tl.range(0, 3, num_stages=3)" in out.triton_text
     assert "_stage" in out.text
@@ -202,6 +203,24 @@ def test_ccec_npu_bin_tracks_mma_layout_stride(tmp_path):
     hp = Path(p.artifact_path).read_bytes()
     assert hc[:4] == hp[:4] == b"\x7fELF"
     assert hashlib.sha256(hc).digest() != hashlib.sha256(hp).digest()
+
+
+def test_cuda_copy_indexes_gmem_layout_stride():
+    """CUDA Copy gmem addresses follow shape×stride (year-1 copy has a store)."""
+    from choreoir.print_cuda import print_cuda
+
+    compact = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    text = print_cuda(compact)
+    assert "A[i0 * 2 + i1 * 1]" in text
+    assert "B[i0 * 2 + i1 * 1]" in text
+    compact.buffers = tuple(
+        Buffer(b.name, b.space, Layout(b.layout.shape, (8, 1)), b.dtype) if b.name == "A" else b
+        for b in compact.buffers
+    )
+    wide = print_cuda(compact)
+    assert "A[i0 * 8 + i1 * 1]" in wide
+    assert "A[i0 * 2 + i1 * 1]" not in wide
+    assert "B[i0 * 2 + i1 * 1]" in wide
 
 
 def test_cce_copy_indexes_layout_stride():
@@ -345,6 +364,35 @@ def test_cuda_cpp_pipeline_stages_shared():
     assert "[3]" in text or "_stage" in text
 
 
+def test_pipeline_depth_wins_over_attrs_num_stages():
+    """CUDA/CCE stage from Pipeline.depth. attrs.num_stages is the Triton sidecar."""
+    from choreoir.print_ascendc import print_ascendc
+    from choreoir.print_cuda import print_cuda
+
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    k.attrs = {**k.attrs, "num_stages": "1"}
+    assert check(k) == []
+    out = lower(k)
+    assert out.errors() == []
+    assert out.facts is not None
+    assert out.facts.pipeline_depth == 3
+    assert out.facts.num_stages == 1
+    cuda = print_cuda(k)
+    assert "__shared__ float As[2][2][3];" in cuda
+    assert "__shared__ float Bs[2][2][3];" in cuda
+    assert "for (int _stage = 0; _stage < 3; ++_stage)" in cuda
+    assert "As[i][kk][_stage]" in cuda
+    k.target = "ascend-a2"
+    cce = print_ascendc(k)
+    assert "pipeline stages=3" in cce
+    assert "for (int _stage = 0; _stage < 3; ++_stage)" in cce
+    assert "As + _stage *" in cce
+    assert "Bs + _stage *" in cce
+    # Triton launch helper still reports the attr; the walk uses op.depth.
+    assert "num_stages=1" in out.triton_text
+    assert "for _stage in tl.range(0, 3, num_stages=3)" in out.triton_text
+
+
 def test_cuda_partition_width_is_codegen():
     """Partition.width is a sink input, not a comment. Not CuTe work-partition."""
     from choreoir.print_cuda import print_cuda
@@ -436,6 +484,57 @@ def test_ccec_npu_bin_tracks_partition_width(tmp_path):
     hn = Path(n.artifact_path).read_bytes()
     assert hw[:4] == hn[:4] == b"\x7fELF"
     assert hashlib.sha256(hw).digest() != hashlib.sha256(hn).digest()
+
+
+@pytest.mark.skipif(find_nvcc() is None, reason="nvcc not installed (stand-in writes .cu only)")
+def test_nvcc_cubin_tracks_gmem_stride_on_writeback_copy(tmp_path):
+    """Year-1 copy writes gmem; nvcc keeps the stride. No-store helpers DCE."""
+    compact = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    padded = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    padded.buffers = tuple(
+        Buffer(b.name, b.space, Layout(b.layout.shape, (8, 1)), b.dtype) if b.name == "A" else b
+        for b in padded.buffers
+    )
+    assert check(compact) == [] and check(padded) == []
+    c = materialize(compact, tmp_path / "c", emit="cubin")
+    p = materialize(padded, tmp_path / "p", emit="cubin")
+    assert c.artifact_kind == "cubin" and p.artifact_kind == "cubin", (c.findings, p.findings)
+    hc = Path(c.artifact_path).read_bytes()
+    hp = Path(p.artifact_path).read_bytes()
+    assert hc[:4] == hp[:4] == b"\x7fELF"
+    assert hashlib.sha256(hc).digest() != hashlib.sha256(hp).digest()
+
+
+@pytest.mark.skipif(find_nvcc() is None, reason="nvcc not installed (stand-in writes .cu only)")
+def test_nvcc_cubin_pipeline_depth_not_unstage_by_attrs(tmp_path):
+    """attrs.num_stages=1 must not shrink year-1 gemm cubin staging."""
+    base = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    mutated = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    mutated.attrs = {**mutated.attrs, "num_stages": "1"}
+    b = materialize(base, tmp_path / "base", emit="cubin")
+    m = materialize(mutated, tmp_path / "mut", emit="cubin")
+    assert b.artifact_kind == "cubin" and m.artifact_kind == "cubin", (b.findings, m.findings)
+    hb = Path(b.artifact_path).read_bytes()
+    hm = Path(m.artifact_path).read_bytes()
+    assert hb[:4] == hm[:4] == b"\x7fELF"
+    assert hashlib.sha256(hb).digest() == hashlib.sha256(hm).digest()
+
+
+@pytest.mark.skipif(find_ccec() is None, reason="ccec not installed (stand-in writes .cce only)")
+def test_ccec_npu_bin_pipeline_depth_not_unstage_by_attrs(tmp_path):
+    """attrs.num_stages=1 must not shrink year-1 gemm NPU-bin staging."""
+    base = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    base.target = "ascend-a2"
+    mutated = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    mutated.target = "ascend-a2"
+    mutated.attrs = {**mutated.attrs, "num_stages": "1"}
+    b = materialize(base, tmp_path / "base", emit="npu-bin")
+    m = materialize(mutated, tmp_path / "mut", emit="npu-bin")
+    assert b.artifact_kind == "npu-bin" and m.artifact_kind == "npu-bin", (b.findings, m.findings)
+    hb = Path(b.artifact_path).read_bytes()
+    hm = Path(m.artifact_path).read_bytes()
+    assert hb[:4] == hm[:4] == b"\x7fELF"
+    assert hashlib.sha256(hb).digest() == hashlib.sha256(hm).digest()
 
 
 @pytest.mark.skipif(find_ccec() is None, reason="ccec not installed (stand-in writes .cce only)")

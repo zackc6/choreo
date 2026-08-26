@@ -11,12 +11,19 @@ YEAR1_KERNELS = frozenset({"copy", "gemm_tile"})
 
 @dataclass(frozen=True)
 class ScheduleFacts:
-    """Inputs to codegen. Kind-2 knobs plus what the sinks must consume."""
+    """Inputs to codegen. Kind-2 knobs plus what the sinks must consume.
+
+    ``num_stages`` is the Triton sidecar / ``pin.launch`` knob and may come from
+    ``attrs.num_stages``. CUDA/CCE buffer staging uses ``pipeline_depth``
+    (max ``Pipeline.depth``, else 1) so that attr cannot unstage the cubin or
+    NPU-bin while the loop still walks ``op.depth``.
+    """
 
     target: str
     family: str  # cuda | ascend
     num_warps: int
     num_stages: int
+    pipeline_depth: int
     block: int
     block_m: int
     block_n: int
@@ -75,14 +82,25 @@ def target_family(target: str) -> str | None:
     return None
 
 
+def pipeline_depth_of(kernel: Kernel) -> int:
+    """Max ``Pipeline.depth`` on the AST. ``1`` when the body has no Pipeline.
+
+    CUDA/CCE stage smem from this value. ``attrs.num_stages`` is a Triton
+    sidecar and must not shrink (or inflate) that reservation.
+    """
+    pipes = [op for op in flatten_ops(kernel.body) if isinstance(op, Pipeline)]
+    if not pipes:
+        return 1
+    return max(p.depth for p in pipes)
+
+
 def facts_from_kernel(kernel: Kernel) -> ScheduleFacts:
     ops = flatten_ops(kernel.body)
-    pipes = [op for op in ops if isinstance(op, Pipeline)]
     copies = [op for op in ops if isinstance(op, Copy)]
     mmas = [op for op in ops if isinstance(op, Mma)]
     barriers = [op for op in ops if isinstance(op, Barrier)]
 
-    num_stages = max((p.depth for p in pipes), default=1)
+    pipe_depth = pipeline_depth_of(kernel)
     num_warps = sum(p.width for p in kernel.partitions) if kernel.partitions else 4
 
     block = 1
@@ -127,7 +145,8 @@ def facts_from_kernel(kernel: Kernel) -> ScheduleFacts:
         target=kernel.target,
         family=family,
         num_warps=_int_attr("num_warps", num_warps),
-        num_stages=_int_attr("num_stages", num_stages),
+        num_stages=_int_attr("num_stages", pipe_depth),
+        pipeline_depth=pipe_depth,
         block=_int_attr("BLOCK", block),
         block_m=_int_attr("BLOCK_M", block_m),
         block_n=_int_attr("BLOCK_N", block_n),
