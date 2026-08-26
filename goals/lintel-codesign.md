@@ -36,7 +36,7 @@ Cake’s word *harness* is a bundle. Split it:
 
 Choreo **undergoes** compiler evolution; Lintel **conducts** it.
 
-- **Undergo:** PRs into `choreoir` (deeper `check`, sinks that consume the schedule, rare spec bumps). After merge, `check` and lowering are still total, classical functions. No LLM in that path.
+- **Undergo:** commits to `choreoir` on `main` (deeper `check`, sinks that consume the schedule, rare spec bumps). After the commit, `check` and lowering are still total, classical functions. No LLM in that path. This repo does not use GitHub pull requests.
 - **Conduct:** Lintel sees `{where}` / sanitizer / miss vs \(F\), classifies (repair candidate vs new gate vs cost cal vs spec-bump / sink-pin), corpus-tests, land / revert / reject.
 
 Choreo does not notice a recurring fail and add a keyword. The agent does not mutate the dialect at runtime (mlirAgent negative: Gemini 2.5 Pro is below identity on MLIR rewrite).
@@ -45,7 +45,7 @@ Year-1 evolution is **gates + sinks**, not vocabulary. `Pipeline.depth=3` becomi
 
 New op / space / role: spec bump, and only when a sink consumes it **and** a check admits it the same day. Syntax without effects makes the IR less analyzable (Cake).
 
-A two-kernel SLA is a weak corpus. Harness PRs stay rarer than kernel PRs or gates overfit.
+A two-kernel SLA is a weak corpus. Harness changes stay rarer than kernel allowlist edits or gates overfit.
 
 ## Union is of admit signals, not languages
 
@@ -97,7 +97,8 @@ SLA allowlists two complete kernels. Payload is a program (kind 1); the *deal* i
 3. A named target + sink consumes `Partition`, `Barrier`, `Pipeline.depth`, layout, and space; comments-only printers are labeled sketches.
 4. Lintel (other repo) is the only place land / revert / reject / freeze / \(F\) live.
 5. GPU and Ascend are two sinks, not one averaged dialect.
-6. Compiler-evolution PRs against this repo are proposed from Lintel evidence and never from in-process dialect rewrite.
+6. Compiler-evolution **commits on `main`** are proposed from Lintel evidence and never from in-process dialect rewrite. No GitHub PR on this repo.
+7. Agents land this tree by pushing `main` directly (see the skill’s Git section).
 
 ## Non-goals (this tree)
 
@@ -113,4 +114,4 @@ SLA allowlists two complete kernels. Payload is a program (kind 1); the *deal* i
 - Layout / sync admit cannot localize to (point, thread, element).
 - A production stack ships peak + serving SLOs with no distinct kernel DSL (collapses the L4 bet).
 - “We compiled Choreo” is the demo and there is still no cubin / NPU bin.
-- Lintel PRs add Choreo keywords without a sink that lowers them.
+- Lintel-driven commits add Choreo keywords without a sink that lowers them.

@@ -4,7 +4,7 @@ Typed **kernel choreography IR** for the data plane — Lintel’s L4 face, not 
 
 This tree is the compiler object: an IR you can construct, check, simulate, and print. It is **not** an orchestrator, MCP server, agent graph, or fitness-\(F\) controller. Lintel (control plane: admit freeze, land / revert / reject, serving \(F\)) lives in a different repo.
 
-Co-design: [`goals/lintel-codesign.md`](goals/lintel-codesign.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](skills/choreo-lintel-codesign/SKILL.md).
+Co-design: [`goals/lintel-codesign.md`](goals/lintel-codesign.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](skills/choreo-lintel-codesign/SKILL.md). **Git:** commit and push `main` only; no pull requests.
 
 Upstream sketch: [zackc6/choreo](https://github.com/zackc6/choreo).
 

@@ -3,8 +3,8 @@ name: choreo-lintel-codesign
 description: >-
   Co-design rules for Choreo (data plane) vs Lintel (control plane).
   Use when changing the Kernel AST, admit (W|L|S|V), printers/sinks, README/SPEC,
-  or anything that mentions Cake, Argus, TIRx, Lintel, harness, freeze, or targets
-  (GPU / Ascend).
+  git landing, or anything that mentions Cake, Argus, TIRx, Lintel, harness,
+  freeze, or targets (GPU / Ascend). This repo commits to main only; no PRs.
 ---
 
 # Choreo × Lintel co-design
@@ -17,6 +17,17 @@ Read [`goals/lintel-codesign.md`](goals/lintel-codesign.md) for the product cut.
 - Adding ops, spaces, roles, checks, printers, or JSON fields.
 - Discussing Cake, Argus, TIRx, “compiler evolution,” or dual-target (GPU / Ascend).
 - Any change that could grow a workflow, serving \(F\), or a second live dialect.
+- Landing git changes, naming a branch, or the urge to open a pull request.
+
+## Git (this repo)
+
+**Commit and push to `main` only.** Directly. No pull request.
+
+- Do not create a `cursor/…` (or any) feature branch to land work.
+- Do not open, update, or merge a GitHub pull request against this repository.
+- Cursor Cloud / agent defaults that say “open a PR,” “draft PR,” or “register a PR per branch” **do not apply here.**
+- Still one commit per logical change; the destination is `main`.
+- Lintel’s land / revert / reject is a **control-plane workflow** in the Lintel repo. It is not a GitHub PR on this tree.
 
 ## Invariants (never break)
 
@@ -36,9 +47,9 @@ From arXiv:2608.12629 §1–4, three pieces; **only (3) is a Lintel object**:
 |---|---|---|
 | (1) Typed IR | Yes — Choreo AST / JSON | Carry the program; do not fork a second face |
 | (2) Lowering | Sinks that consume the schedule; or pin `@tirx.v0` / `@tilelang.ascend` | No ISA, no cubin compiler |
-| (3) Evolving harness | No workflow. Choreo *undergoes* PRs | *Conducts* the loop: classify fail, corpus-gate, merge, freeze |
+| (3) Evolving harness | No workflow. Choreo *undergoes* commits on `main` | *Conducts* the loop: classify fail, corpus-gate, land/revert, freeze |
 
-**Compiler evolution:** Choreo is the artifact that changes (`choreoir` PRs). Lintel is the process that lands them. Choreo does not self-expand when a fail recurs.
+**Compiler evolution:** Choreo is the artifact that changes (commits to `choreoir` on `main`). Lintel is the process that decides those commits should exist. Choreo does not self-expand when a fail recurs.
 
 Year-1: evolve **gates + sinks**, not vocabulary.
 
@@ -82,6 +93,7 @@ If there is still no cubin / NPU bin, **M2 kill switch:** `@triton.v0` knobs. If
 
 When changing this repo, ask:
 
+- [ ] Will this land as a commit on `main` (no PR, no feature branch)?
 - [ ] Does this add control-plane behavior? If yes, stop — belongs in Lintel.
 - [ ] Does this glue Cake + Argus + TIRx *languages* (layout algebra + hidden layout + TVM in the pin)? If yes, stop.
 - [ ] Does a new AST node have a check **and** a sink that consumes it?
@@ -91,6 +103,7 @@ When changing this repo, ask:
 
 ## Do not
 
+- Open a pull request or land via a side branch on this repo. Push `main`.
 - Sell `role` as Cake’s numbers (1.144× / 2.05×). Those need a cubin sink + evolving harness.
 - Add Z3, CuTe work-partition, or a second year-1 compiler.
 - Put TVM in the pin just to wrap TIRx; `@tirx.v0` is an optional door for TVM-native partners.
