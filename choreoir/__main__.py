@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .check import check
+from .consume_check import consume_check
 from .interp import check_value, simulate
 from .jsonio import kernel_to_dict, load_kernel_doc
 from .lower import lower, materialize
@@ -67,6 +68,12 @@ def main(argv: list[str] | None = None) -> int:
     pinp = sub.add_parser("pin", help="validate pin.json cache_key.v0 + launch (Lintel handshake)")
     pinp.add_argument("pin", type=Path)
 
+    cc = sub.add_parser(
+        "consume-check",
+        help="validate a Lintel tree against the year-1 consume contract (not freeze/F)",
+    )
+    cc.add_argument("root", type=Path, help="Lintel checkout root (docs + schemas + examples)")
+
     prp = sub.add_parser(
         "propose",
         help="emit lintel.adapter_proposal.v0 (W/L/S as CFG edges; V if --tensors/--expected)",
@@ -95,6 +102,11 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     if args.cmd == "pin":
         errs = pin_doc_errors(_read_json(args.pin))
+        print(json.dumps(errs, indent=2))
+        return 1 if errs else 0
+
+    if args.cmd == "consume-check":
+        errs = consume_check(args.root)
         print(json.dumps(errs, indent=2))
         return 1 if errs else 0
 

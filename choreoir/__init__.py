@@ -15,11 +15,12 @@ from .ast import (
     Yield,
 )
 from .check import Finding, check
+from .consume_check import consume_check
 from .interp import check_value, simulate, simulate_copy
 from .jsonio import kernel_from_dict, kernel_to_dict, load_kernel_doc
 from .knobs import YEAR1_KERNELS, ScheduleFacts, facts_from_kernel
 from .lower import Lowered, adapter_id, find_ccec, find_nvcc, lower, materialize
-from .pin import FACE_ADAPTER_ID, cache_key_errors, sink_id, unspecified_graph_hash
+from .pin import FACE_ADAPTER_ID, cache_key_errors, launch_errors, pin_doc_errors, sink_id, unspecified_graph_hash
 from .propose import adapter_proposal
 from .print_ascend import print_ascend
 from .print_ascendc import print_ascendc
@@ -76,5 +77,8 @@ __all__ = [
     "sink_id",
     "FACE_ADAPTER_ID",
     "cache_key_errors",
+    "consume_check",
+    "launch_errors",
+    "pin_doc_errors",
     "unspecified_graph_hash",
 ]

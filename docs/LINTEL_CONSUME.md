@@ -18,10 +18,13 @@ python3 -m choreoir check examples/fails/value_mismatch.json \
   --expected examples/fails/value_mismatch.expected.json   # where = V
 python3 -m choreoir lower examples/gemm.json -o /tmp/out --emit cubin
 python3 -m choreoir pin /tmp/out/pin.json
+python3 -m choreoir consume-check /path/to/lintel
 python3 -m choreoir lower examples/gemm.json -o /tmp/npu --target ascend-a2 --emit npu-bin
 ```
 
 Year-1 allowlist: `copy`, `gemm_tile` (`Pipeline.depth=3` on gemm). Face `adapter_id`: `choreo.v0`.
+
+`choreo consume-check PATH` is the machine checker of this contract against a Lintel checkout (no `src/`; year-1 slots `copy`/`gemm_tile`; NVIDIA freeze `choreoir==0.1.9;nvcc.cubin` + `artifact.kind=cubin` + `artifact.launch`; session Finding JSON as a sibling of `reject`; propose kernel is the full AST; `%k` digest matches canonical JSON; no Triton as the year-1 sink). It does not freeze, land, or serve \(F\). Tests use tmp mini trees so CI does not clone Lintel. `examples/later/` is skipped. Local absorb (`/tmp/lintel-probe`) exits 0; `origin/main` (`fda2db2`) still fails (Triton pin, attn slots, `artifact.kind=choreo_kernel`, no `launch`).
 
 Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower --emit`):
 
