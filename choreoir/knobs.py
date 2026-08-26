@@ -24,6 +24,8 @@ class ScheduleFacts:
     n_barrier: int
     n_copy: int
     n_mma: int
+    isa: str
+    arch: str
 
     def as_dict(self) -> dict[str, str | int]:
         return {
@@ -38,7 +40,30 @@ class ScheduleFacts:
             "n_barrier": self.n_barrier,
             "n_copy": self.n_copy,
             "n_mma": self.n_mma,
+            "isa": self.isa,
+            "arch": self.arch,
         }
+
+
+def nv_arch(target: str) -> str:
+    t = target.strip()
+    if t.startswith("cuda-sm"):
+        return "sm_" + t[len("cuda-sm") :].replace("a", "")
+    return "sm_80"
+
+
+def nv_mma_isa(target: str) -> str:
+    arch = nv_arch(target)
+    if arch.startswith("sm_100") or arch.startswith("sm_12"):
+        return "tcgen05.mma"
+    if arch.startswith("sm_90"):
+        return "wgmma.mma_async"
+    return "mma.sync"
+
+
+def npu_isa(target: str) -> str:
+    del target
+    return "cube.mmad"
 
 
 def target_family(target: str) -> str | None:
@@ -82,6 +107,10 @@ def facts_from_kernel(kernel: Kernel) -> ScheduleFacts:
         return int(raw)
 
     family = target_family(kernel.target) or ""
+    if family == "ascend":
+        isa, arch = npu_isa(kernel.target), "davinci"
+    else:
+        isa, arch = nv_mma_isa(kernel.target), nv_arch(kernel.target)
     return ScheduleFacts(
         target=kernel.target,
         family=family,
@@ -94,6 +123,8 @@ def facts_from_kernel(kernel: Kernel) -> ScheduleFacts:
         n_barrier=len(barriers),
         n_copy=len(copies),
         n_mma=len(mmas),
+        isa=isa,
+        arch=arch,
     )
 
 

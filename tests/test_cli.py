@@ -45,3 +45,14 @@ def test_cli_print_refuses_without_target(tmp_path, capsys):
     assert main(["print", str(p)]) == 1
     findings = json.loads(capsys.readouterr().out)
     assert any("named target" in f["msg"] for f in findings)
+
+
+def test_cli_lower_cubin_manifest(tmp_path, capsys):
+    rc = main(
+        ["lower", str(ROOT / "examples" / "gemm.json"), "-o", str(tmp_path), "--emit", "cubin"]
+    )
+    assert rc == 0
+    man = json.loads(capsys.readouterr().out)
+    assert man["family"] == "cuda"
+    assert (tmp_path / "gemm_tile.cu").is_file()
+    assert man["source_sha256"]

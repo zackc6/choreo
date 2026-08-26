@@ -17,8 +17,9 @@ from .check import Finding, check
 from .interp import check_value, simulate, simulate_copy
 from .jsonio import kernel_from_dict, kernel_to_dict
 from .knobs import YEAR1_KERNELS, ScheduleFacts, facts_from_kernel
-from .lower import Lowered, lower
+from .lower import Lowered, lower, materialize
 from .print_ascend import print_ascend
+from .print_cuda import print_cuda
 from .print_triton import print_triton
 
 __all__ = [
@@ -43,7 +44,9 @@ __all__ = [
     "kernel_from_dict",
     "kernel_to_dict",
     "lower",
+    "materialize",
     "print_ascend",
+    "print_cuda",
     "print_triton",
     "simulate",
     "simulate_copy",

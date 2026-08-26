@@ -84,6 +84,8 @@ python3 -m choreoir sim examples/gemm.json \
   --expected examples/gemm.expected.json
 python3 -m choreoir print examples/gemm.json
 python3 -m choreoir print examples/gemm.json --target ascend-a2
+python3 -m choreoir lower examples/gemm.json -o /tmp/choreo-out --emit cubin
+python3 -m choreoir lower examples/gemm.json -o /tmp/choreo-npu --target ascend-a2 --emit npu-bin
 ```
 
 Or from Python:

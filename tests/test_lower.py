@@ -172,3 +172,53 @@ def test_examples_lower_cuda():
         assert out.errors() == [], out.findings
         assert out.family == "cuda"
         assert "@triton.jit" in out.text
+        assert out.cuda_text
+        assert "__global__" in out.cuda_text
+
+
+def test_cuda_cpp_consumes_smem_barrier_mma_isa():
+    from choreoir.print_cuda import print_cuda
+
+    k = _gemm_k(target="cuda-sm90")
+    text = print_cuda(k)
+    assert "__shared__" in text
+    assert "__syncthreads();" in text
+    assert "wgmma.mma_async" in text
+    assert "copy cA" in text
+    sm100 = print_cuda(_gemm_k(target="cuda-sm100"))
+    assert "tcgen05.mma" in sm100
+
+
+def test_cuda_cpp_pipeline_stages_shared():
+    from choreoir.print_cuda import print_cuda
+
+    k = _gemm_k(pipeline_depth=3, target="cuda")
+    text = print_cuda(k)
+    assert "num_stages=3" in text or "depth=3" in text
+    assert "[3]" in text or "_stage" in text
+
+
+def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
+    from choreoir.lower import materialize
+
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    out = materialize(k, tmp_path, emit="cubin")
+    assert not out.errors()
+    assert (tmp_path / "gemm_tile.cu").is_file()
+    assert "nvcc missing" in " ".join(f.msg for f in out.findings)
+    assert out.artifact_kind == "source"
+    assert (tmp_path / "manifest.json").is_file()
+    assert out.source_sha256
+
+
+def test_materialize_npu_bin_without_tilelang(tmp_path):
+    from choreoir.lower import materialize
+
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    k.target = "ascend-a2"
+    out = materialize(k, tmp_path, emit="npu-bin")
+    assert not out.errors()
+    assert "tilelang" in " ".join(f.msg for f in out.findings).lower() or "CANN" in " ".join(
+        f.msg for f in out.findings
+    )
+    assert (tmp_path / "gemm_tile.npu.py").is_file()

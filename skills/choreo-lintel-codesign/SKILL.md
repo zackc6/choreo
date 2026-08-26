@@ -69,8 +69,9 @@ This compiler object **always** lowers to both families. Missing that is a bug, 
 
 The sinks **must consume** partition widths, `Pipeline.depth`, layouts (`BLOCK_*`), `Barrier`, and memory spaces as codegen inputs — not comments-only. Today:
 
-- **NVIDIA:** Triton source. `num_warps` from partitions, `num_stages` on `tl.range` from `Pipeline.depth`, `BLOCK_*` from layout, `tl.debug_barrier()` from `Barrier`. Not cubin; not WGMMA vs `tcgen05`.
-- **Ascend:** TileLang-Ascend source. `gmem→GM`, `smem→L1`, `tmem→L0C`, `regs→UB` (mma C → L0C). `Copy`→`T.copy`, `Mma`→`T.gemm` in `T.Scope("C")`, `Barrier`→`T.pipe_barrier`, `Pipeline.depth`→`T.Pipelined(..., num_stages=)`. Not an NPU bin; CANN is not in the pin.
+- **NVIDIA cubin path:** CUDA C++ (`print_cuda`). `smem`→`__shared__`, `Copy`→gmem loads, `Barrier`→`__syncthreads`, `Pipeline.depth`→staged smem, ISA from target (`mma.sync` / `wgmma.mma_async` / `tcgen05.mma`). `materialize(..., emit='cubin')` runs `nvcc -cubin` when present; otherwise a warning and the `.cu` only.
+- **NVIDIA M2 source:** Triton knobs (`print_triton`) as above.
+- **Ascend:** TileLang-Ascend source. `materialize(..., emit='npu-bin')` tries TileLang/CANN; otherwise a warning and the `.npu.py` only.
 
 Do not unify NVIDIA smem and Ascend L1 into one `onchip` enum. Do not add a second live face. Device toolchains stay sinks we print *into*.
 

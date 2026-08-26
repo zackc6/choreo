@@ -8,7 +8,7 @@ from pathlib import Path
 from .check import check
 from .interp import check_value, simulate
 from .jsonio import kernel_from_dict, kernel_to_dict
-from .lower import lower
+from .lower import lower, materialize
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,12 +26,23 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--tensors", type=Path, required=True)
     s.add_argument("--expected", type=Path, default=None)
 
-    t = sub.add_parser("print", help="admit-gated lower to NVIDIA Triton or Ascend TileLang")
+    t = sub.add_parser("print", help="admit-gated source (Triton / TileLang) to stdout")
     t.add_argument("kernel", type=Path)
     t.add_argument(
         "--target",
         default=None,
         help="override Kernel.target (cuda | cuda-sm90 | ascend-a2 | ...)",
+    )
+
+    lo = sub.add_parser("lower", help="write NV/Ascend source; optionally try cubin / NPU bin")
+    lo.add_argument("kernel", type=Path)
+    lo.add_argument("--target", default=None)
+    lo.add_argument("-o", "--out", type=Path, required=True)
+    lo.add_argument(
+        "--emit",
+        choices=("source", "cubin", "npu-bin"),
+        default="source",
+        help="source=Triton/TileLang+CUDA C++; cubin=nvcc; npu-bin=TileLang/CANN",
     )
 
     d = sub.add_parser("dump", help="round-trip kernel JSON to stdout")
@@ -64,6 +75,13 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         sys.stdout.write(result.text)
         return 0
+
+    if args.cmd == "lower":
+        if args.target:
+            kernel.target = args.target
+        result = materialize(kernel, args.out, emit=args.emit)
+        print(json.dumps(result.as_manifest(), indent=2))
+        return 1 if result.errors() else 0
 
     if args.cmd == "dump":
         print(json.dumps(kernel_to_dict(kernel), indent=2))

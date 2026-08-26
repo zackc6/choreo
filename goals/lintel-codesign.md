@@ -69,8 +69,8 @@ A compiler object here has to (1) take warp/core roles, barriers, pipeline depth
 
 `choreoir.lower` is admit-gated. `Kernel.target` is required (`cuda` / `cuda-sm*` / `ascend*`). Year-1 allowlist: `copy`, `gemm_tile`.
 
-- NVIDIA: Triton source; knobs from the AST; `tl.debug_barrier` from `Barrier`; `tl.range(..., num_stages=)` from `Pipeline.depth`.
-- Ascend: TileLang-Ascend source; spaces mapped GM/L1/L0C/UB; `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined`.
+- NVIDIA: Triton source (M2 knobs) plus CUDA C++ cubin path (`__shared__`, `__syncthreads`, ISA from `cuda-sm*`). `materialize(..., emit='cubin')` runs nvcc when present.
+- Ascend: TileLang-Ascend source; `emit='npu-bin'` tries CANN/TileLang when present.
 
 ## Targets: GPU and Ascend NPU
 

@@ -61,10 +61,11 @@ This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kern
 | Family | `Kernel.target` | Sink | Consumes |
 |---|---|---|---|
 | CPU interpreter | (any) | `simulate` | Copy / Mma / Reduce values |
-| NVIDIA GPU | `cuda`, `cuda-sm*` | Triton source (`print_triton`) | layouts → `BLOCK_*`, partitions → `num_warps`, `Pipeline.depth` → `num_stages`, `Barrier` → `tl.debug_barrier` |
-| Ascend NPU | `ascend*` | TileLang-Ascend source (`print_ascend`) | spaces → GM/L1/L0C/UB, `Copy`/`Mma`/`Barrier`/`Pipeline` as `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined` |
+| NVIDIA GPU (M2 source) | `cuda`, `cuda-sm*` | Triton (`print_triton`) | layouts → `BLOCK_*`, partitions → `num_warps`, `Pipeline.depth` → `num_stages`, `Barrier` → `tl.debug_barrier` |
+| NVIDIA GPU (cubin path) | `cuda`, `cuda-sm*` | CUDA C++ (`print_cuda`) + `nvcc -cubin` | smem → `__shared__`, Copy → gmem loads, Barrier → `__syncthreads`, Pipeline → staged smem, Mma ISA from target (`mma.sync` / `wgmma` / `tcgen05`) |
+| Ascend NPU | `ascend*` | TileLang (`print_ascend`) + CANN when present | spaces → GM/L1/L0C/UB, `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined` |
 
-Year-1 SLA names: `copy`, `gemm_tile`. Device cubin / NPU bin are outside this pin (Triton/CANN). Do not fork a new execution ISA. Do not glue NVIDIA and Ascend spaces into one enum.
+`materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes source and tries the device toolchain. Missing `nvcc` / TileLang is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile`. Do not glue NVIDIA and Ascend spaces into one enum.
 
 Choreo **storage layout** is an explicit contract for admit and for the sinks (cheap `shape × stride`). Work partitioning lives in `Partition` + `Layout`.
 
