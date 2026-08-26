@@ -106,6 +106,8 @@ A consume absorb is committed locally on lintel `main` but **cannot be pushed** 
 - `54d1dbd` propose payload kernel is the full AST (name/buffers/partitions/body), not a name stub; session-event schema requires those fields
 - `a89e5d4` freeze artifact is nvcc cubin (kind cubin, copy.cubin / gemm_tile.cubin), not a .py; digest is pin.artifact_sha256
 - `ae62bae` same copy Kernel on Ascend is a new %k (ccec.aicore / npu-bin); year-1 live search stays NVIDIA
+- `beab884` consume rows point at choreo `409180a` public nvcc cubin CI; two copy-kernel `%k` without ccec
+- `9971fb1` data-plane PoC notes that choreo public CI fetches nvcc so cubin tests cannot skip
 
 Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`.
 
