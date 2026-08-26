@@ -92,10 +92,11 @@ A consume absorb is committed locally on lintel `main` but **cannot be pushed** 
 - `98356bc` drop remaining Triton-as-sink wording
 - `d4a0056` year-1 PoC CFG / admit-record slots are `copy` then `gemm_tile`; L-fail is `examples/choreo/layout_cover.proposal.json` (`{where: L, hint: buffer.A}`); attn envelopes moved to `examples/later/`
 - `0203863` `cache_key_digest` is sha256 of canonical `cache-key.v0` JSON (was a leftover Triton-era example hash)
+- `9436e8f` session log is Choreo `copy` / `gemm_tile` walks (`{where: L}` edge, freeze under `%k`, serving revert) — not Triton knobs
 
 Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`.
 
-Files on the Lintel side that should absorb this: `docs/CHOREO.md`, `docs/DATA_PLANE.md`, `docs/ADAPTERS.md`, `docs/YEAR1.md`, `docs/SURVEY_MATCH.md`, `docs/LINTEL_IR.md`, `docs/POC.md`, `examples/admit-record.json` `compiler_ver` / `adapter_id` / `enum_id` / `cache_key_digest`, `schemas/adapter-proposal.v0.schema.json` op enum, `schemas/admit-record.v0.schema.json` `artifact.kind`, `examples/poc/*.json` / `*.lintel`, `examples/choreo/`.
+Files on the Lintel side that should absorb this: `docs/CHOREO.md`, `docs/DATA_PLANE.md`, `docs/ADAPTERS.md`, `docs/YEAR1.md`, `docs/SURVEY_MATCH.md`, `docs/LINTEL_IR.md`, `docs/POC.md`, `examples/admit-record.json` `compiler_ver` / `adapter_id` / `enum_id` / `cache_key_digest`, `examples/session-log.jsonl`, `schemas/adapter-proposal.v0.schema.json` op enum, `schemas/admit-record.v0.schema.json` `artifact.kind`, `examples/poc/*.json` / `*.lintel`, `examples/choreo/`.
 
 ## Never in this tree
 
