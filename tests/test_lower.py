@@ -13,6 +13,7 @@ from choreoir.ast import (
     Mma,
     Partition,
     Pipeline,
+    Reduce,
 )
 from choreoir.check import check
 from choreoir.jsonio import kernel_from_dict
@@ -390,6 +391,54 @@ def test_print_ascendc_consumes_copy_barrier_mma_pipeline():
     assert "role=math" in text
     assert "vmadd(" in text
     assert "space=smem → L1" in text
+
+
+def _reduce_k(target: str) -> Kernel:
+    return Kernel(
+        "red",
+        target=target,
+        buffers=(
+            Buffer("X", "regs", Layout((2, 2), (2, 1)), "f32"),
+            Buffer("Y", "regs", Layout((2,), (1,)), "f32"),
+        ),
+        partitions=(Partition("math", "math", 1),),
+        body=(Reduce("r0", "X", "Y", 1, "math"),),
+    )
+
+
+def test_cuda_and_cce_lower_reduce():
+    from choreoir.print_ascendc import print_ascendc
+    from choreoir.print_cuda import print_cuda
+
+    cuda = print_cuda(_reduce_k("cuda"))
+    assert "reduce r0 X-axis1->Y" in cuda
+    assert "Y[rz0] = 0.f;" in cuda
+    assert "Y[rs0] += (float)X[rs0][rs1];" in cuda
+    assert "not lowered" not in cuda
+    cce = print_ascendc(_reduce_k("ascend-a2"))
+    assert "reduce r0 X-axis1->Y" in cce
+    assert "vector_dup(Y, 0.f, 1);" in cce
+    assert "vadd(Y + rs0, Y + rs0, X + rs0 * 2 + rs1, 1);" in cce
+    assert "not lowered" not in cce
+    out = lower(_reduce_k("cuda"), sla=False)
+    assert out.errors() == []
+    assert "reduce r0" in out.text
+
+
+@pytest.mark.skipif(find_nvcc() is None, reason="nvcc not installed (stand-in writes .cu only)")
+def test_materialize_reduce_cubin_is_elf(tmp_path):
+    out = materialize(_reduce_k("cuda"), tmp_path, emit="cubin", sla=False)
+    assert not out.errors(), out.findings
+    assert out.artifact_kind == "cubin"
+    assert Path(out.artifact_path).read_bytes()[:4] == b"\x7fELF"
+
+
+@pytest.mark.skipif(find_ccec() is None, reason="ccec not installed (stand-in writes .cce only)")
+def test_materialize_reduce_npu_bin_is_elf(tmp_path):
+    out = materialize(_reduce_k("ascend-a2"), tmp_path, emit="npu-bin", sla=False)
+    assert not out.errors(), out.findings
+    assert out.artifact_kind == "npu-bin"
+    assert Path(out.artifact_path).read_bytes()[:4] == b"\x7fELF"
 
 
 @pytest.mark.skipif(find_ccec() is None, reason="ccec not installed (stand-in writes .cce only)")

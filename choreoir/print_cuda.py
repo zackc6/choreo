@@ -1,4 +1,4 @@
-"""NVIDIA CUDA C++ sink — the cubin-bound path. Walks Copy/Barrier/Mma/Pipeline."""
+"""NVIDIA CUDA C++ sink — the cubin-bound path. Walks Copy/Barrier/Mma/Pipeline/Reduce."""
 
 from __future__ import annotations
 
@@ -15,7 +15,8 @@ def print_cuda(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
 
     smem → __shared__, Copy → gmem↔onchip index loops, Barrier → __syncthreads,
     Pipeline.depth → staged shared arrays, Mma → scalar MAC plus named ISA
-    (mma.sync / wgmma.mma_async / tcgen05.mma) from Kernel.target.
+    (mma.sync / wgmma.mma_async / tcgen05.mma) from Kernel.target, Reduce →
+    nested sum over axis.
     nvcc -cubin turns this into a cubin when the toolchain is present.
     """
     facts = facts or facts_from_kernel(kernel)
@@ -126,7 +127,7 @@ def _emit_ops(
         elif isinstance(op, Mma):
             lines.extend(_emit_mma(op, indent, kernel, facts))
         elif isinstance(op, Reduce):
-            lines.append(f"{indent}// reduce {op.id} axis={op.axis} (not lowered in v0.1 cuda sink)")
+            lines.extend(_emit_reduce(op, indent, kernel, facts))
         elif isinstance(op, Yield):
             lines.append(f"{indent}// yield {op.id}: {','.join(op.values)}")
     return lines
@@ -141,12 +142,14 @@ def _buf_ref(buf: Buffer, names: list[str], facts: ScheduleFacts) -> str:
     return f"{buf.name}{idx}{stage}"
 
 
-def _index_loops_named(shape: tuple[int, ...], indent: str, body: str) -> list[str]:
+def _index_loops_named(
+    shape: tuple[int, ...], indent: str, body: str, names: list[str] | None = None
+) -> list[str]:
     if not shape:
         return [f"{indent}{body}"]
+    use = names if names is not None else [f"i{d}" for d in range(len(shape))]
     lines: list[str] = []
-    names = [f"i{d}" for d in range(len(shape))]
-    for d, (n, nm) in enumerate(zip(shape, names)):
+    for d, (n, nm) in enumerate(zip(shape, use)):
         lines.append(f"{indent}{'  ' * d}for (int {nm} = 0; {nm} < {n}; ++{nm}) {{")
     lines.append(f"{indent}{'  ' * len(shape)}{body}")
     for d in range(len(shape) - 1, -1, -1):
@@ -193,3 +196,34 @@ def _emit_mma(op: Mma, indent: str, kernel: Kernel, facts: ScheduleFacts) -> lis
         f"{indent}  }}",
         f"{indent}}}",
     ]
+
+
+def _emit_reduce(op: Reduce, indent: str, kernel: Kernel, facts: ScheduleFacts) -> list[str]:
+    src, dst = kernel.buffer(op.src), kernel.buffer(op.dst)
+    part = kernel.partition(op.partition)
+    role = part.role if part else "?"
+    if src is None or dst is None:
+        return [f"{indent}// reduce {op.id} missing buffer"]
+    src_names = [f"rs{d}" for d in range(len(src.layout.shape))]
+    dst_from_src = [src_names[d] for d in range(len(src.layout.shape)) if d != op.axis]
+    z_names = [f"rz{d}" for d in range(len(dst.layout.shape))]
+    lines = [
+        f"{indent}// reduce {op.id} {op.src}-axis{op.axis}->{op.dst} @{op.partition} role={role}"
+    ]
+    lines.extend(
+        _index_loops_named(
+            dst.layout.shape,
+            indent,
+            f"{_buf_ref(dst, z_names, facts)} = 0.f;",
+            z_names,
+        )
+    )
+    lines.extend(
+        _index_loops_named(
+            src.layout.shape,
+            indent,
+            f"{_buf_ref(dst, dst_from_src, facts)} += (float){_buf_ref(src, src_names, facts)};",
+            src_names,
+        )
+    )
+    return lines

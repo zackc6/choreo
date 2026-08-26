@@ -4,7 +4,7 @@ Official `ccec --cce-aicore-only -c` turns this into an elf64-hiipu relocatable
 when the toolchain is present. Not a homemade Davinci object. Not L5 ISA.
 Onchip buffers are UB pointer stand-ins (like CUDA mapping every dtype to float):
 this `ccec` object accepts GM↔UB copies and UB vector ops, not L1/cube mad.
-Copy/Barrier/Pipeline/Mma still consume the schedule. Cube mad is later L5.
+Copy/Barrier/Pipeline/Mma/Reduce still consume the schedule. Cube mad is later L5.
 TileLang is the sidecar.
 """
 
@@ -26,7 +26,8 @@ def print_ascendc(kernel: Kernel, facts: ScheduleFacts | None = None) -> str:
     gmem → __gm__, Copy → copy_gm_to_ubuf / copy_ubuf_to_gm (burst from layout),
     Barrier → pipe_barrier(PIPE_ALL), Pipeline.depth → staged loop, Mma →
     named cube.mmad plus M/N/K loops and a UB `vmadd` fallback (cube mad is
-    later L5 / cube-capable arch).
+    later L5 / cube-capable arch). Reduce → nested loops over ``axis`` plus
+    UB `vector_dup` / `vadd` (scalar ``+=`` is not an aicore op).
     """
     facts = facts or facts_from_kernel(kernel)
     fn = ident(kernel.name)
@@ -139,9 +140,7 @@ def _emit_ops(
         elif isinstance(op, Mma):
             lines.extend(_emit_mma(op, indent, kernel, facts))
         elif isinstance(op, Reduce):
-            lines.append(
-                f"{indent}// reduce {op.id} axis={op.axis} (not lowered in v0.1 cce sink)"
-            )
+            lines.extend(_emit_reduce(op, indent, kernel))
         elif isinstance(op, Yield):
             lines.append(f"{indent}// yield {op.id}: {','.join(op.values)}")
     return lines
@@ -207,3 +206,48 @@ def _emit_mma(op: Mma, indent: str, kernel: Kernel, facts: ScheduleFacts) -> lis
         f"{indent}  }}",
         f"{indent}}}",
     ]
+
+
+def _lin(buf: Buffer, names: list[str]) -> str:
+    parts: list[str] = []
+    for nm, s in zip(names, buf.layout.stride):
+        parts.append(nm if s == 1 else f"{nm} * {s}")
+    return " + ".join(parts) or "0"
+
+
+def _cce_loops(names: list[str], extents: tuple[int, ...], indent: str, body: str) -> list[str]:
+    if not names:
+        return [f"{indent}{body}"]
+    lines: list[str] = []
+    for d, (n, nm) in enumerate(zip(extents, names)):
+        lines.append(f"{indent}{'  ' * d}for (int {nm} = 0; {nm} < {n}; ++{nm}) {{")
+    lines.append(f"{indent}{'  ' * len(names)}{body}")
+    for d in range(len(names) - 1, -1, -1):
+        lines.append(f"{indent}{'  ' * d}}}")
+    return lines
+
+
+def _emit_reduce(op: Reduce, indent: str, kernel: Kernel) -> list[str]:
+    src, dst = kernel.buffer(op.src), kernel.buffer(op.dst)
+    part = kernel.partition(op.partition)
+    role = part.role if part else "?"
+    if src is None or dst is None:
+        return [f"{indent}// reduce {op.id} missing buffer"]
+    src_names = [f"rs{d}" for d in range(len(src.layout.shape))]
+    dst_from_src = [src_names[d] for d in range(len(src.layout.shape)) if d != op.axis]
+    dst_off = _lin(dst, dst_from_src)
+    src_off = _lin(src, src_names)
+    lines = [
+        f"{indent}// reduce {op.id} {op.src}-axis{op.axis}->{op.dst} @{op.partition} role={role}",
+        f"{indent}// aicore forbids scalar +=; UB vector_dup/vadd fallback (not L5 ISA)",
+        f"{indent}vector_dup({dst.name}, 0.f, 1);",
+    ]
+    lines.extend(
+        _cce_loops(
+            src_names,
+            src.layout.shape,
+            indent,
+            f"vadd({dst.name} + {dst_off}, {dst.name} + {dst_off}, {src.name} + {src_off}, 1);",
+        )
+    )
+    return lines
