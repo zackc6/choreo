@@ -17,6 +17,12 @@ python3 -m choreoir lower examples/gemm.json -o /tmp/npu --target ascend-a2 --em
 
 Year-1 allowlist: `copy`, `gemm_tile`. Face `adapter_id`: `choreo.v0`.
 
+Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower --emit`):
+
+- [`examples/copy.proposal.json`](../examples/copy.proposal.json) / [`examples/gemm.proposal.json`](../examples/gemm.proposal.json)
+- [`examples/copy.pin.json`](../examples/copy.pin.json) / [`examples/gemm.pin.json`](../examples/gemm.pin.json)
+- [`examples/fails/layout_cover.proposal.json`](../examples/fails/layout_cover.proposal.json) — `{where: L}`
+
 ## `%k` (`cache-key.v0`)
 
 `materialize` writes `pin.json`. `cache_key` is the freeze key (additionalProperties false). Kernel AST is the **value at** the key.

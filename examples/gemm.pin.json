@@ -1,0 +1,20 @@
+{
+  "schema_version": "choreo-pin.v1",
+  "cache_key": {
+    "schema_version": "cache-key.v0",
+    "graph_hash": "sha256:da10ec6e5ccfe27c7ee10f4fe4db4a5d41588fe4a0e4d8de08dc7ad0cadbf300",
+    "hw_id": "nvidia.sm_80",
+    "compiler_ver": "choreoir==0.1.6;cuda.cxx",
+    "adapter_id": "choreo.v0",
+    "policy_id": "lintel.specialize.v0"
+  },
+  "kernel": "gemm_tile",
+  "family": "cuda",
+  "isa": "mma.sync",
+  "arch": "sm_80",
+  "target": "cuda",
+  "sink_id": "cuda.cxx",
+  "artifact_kind": "source",
+  "artifact_sha256": null,
+  "source_sha256": "7a37694bd3fedb47212eb6113ea0e1447234affb5357446612da5e2892e00a04"
+}

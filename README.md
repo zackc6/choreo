@@ -135,7 +135,7 @@ Findings are JSON-serializable (`Finding.as_dict`) so a later agent can consume 
 
 ```text
 choreoir/     AST + checkers + interpreter + NV/Ascend sinks + JSON FFI
-examples/     copy and GEMM-tile kernels as JSON (gmem writeback); fails/ T5 corpus
+examples/     copy and GEMM-tile kernels as JSON (gmem writeback); fails/ T5 corpus; proposal/pin handshake goldens
 tests/        wellformed / layout / sync / sim / printer / CLI
 docs/SPEC.md  grammar and admit rules
 docs/LINTEL_CONSUME.md  what the Lintel plan repo should treat as current

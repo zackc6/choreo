@@ -97,3 +97,14 @@ def test_cli_propose_reject_exit(tmp_path, capsys):
     saved = json.loads(out.read_text())
     assert "reject" not in saved
     assert saved["adapter_id"] == "choreo.v0"
+
+
+def test_handshake_goldens_match_live_propose():
+    for name in ("copy", "gemm"):
+        k = kernel_from_dict(json.loads((ROOT / "examples" / f"{name}.json").read_text()))
+        gold = json.loads((ROOT / "examples" / f"{name}.proposal.json").read_text())
+        assert adapter_proposal(k) == gold
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "fails" / "layout_cover.json").read_text()))
+    gold = json.loads((ROOT / "examples" / "fails" / "layout_cover.proposal.json").read_text())
+    assert adapter_proposal(k) == gold
+    assert gold["reject"]["where"] == "L"

@@ -1,0 +1,87 @@
+{
+  "schema": "lintel.adapter_proposal.v0",
+  "adapter_id": "choreo.v0",
+  "graph_hash": "sha256:da10ec6e5ccfe27c7ee10f4fe4db4a5d41588fe4a0e4d8de08dc7ad0cadbf300",
+  "hw_id": "nvidia.sm_80",
+  "compiler_ver": "choreoir==0.1.1;cuda.cxx",
+  "enum_id": "copy",
+  "kernel": {
+    "name": "copy",
+    "target": "cuda",
+    "params": [],
+    "buffers": [
+      {
+        "name": "A",
+        "space": "gmem",
+        "dtype": "f16",
+        "layout": {
+          "shape": [
+            8,
+            8
+          ],
+          "stride": [
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "name": "S",
+        "space": "smem",
+        "dtype": "f16",
+        "layout": {
+          "shape": [
+            8,
+            8
+          ],
+          "stride": [
+            1,
+            1
+          ]
+        }
+      }
+    ],
+    "partitions": [
+      {
+        "name": "load",
+        "role": "load",
+        "width": 1
+      }
+    ],
+    "body": [
+      {
+        "op": "copy",
+        "id": "c0",
+        "src": "A",
+        "dst": "S",
+        "partition": "load"
+      }
+    ],
+    "attrs": {},
+    "compiler_ver": "0.1.1"
+  },
+  "gates": [
+    "W",
+    "L",
+    "S",
+    "V"
+  ],
+  "reject": {
+    "ok": false,
+    "where": "L",
+    "hint": "buffer.A",
+    "reason": "stride does not cover shape",
+    "finding": {
+      "gate": "L",
+      "severity": "error",
+      "node": "buffer.A",
+      "msg": "stride does not cover shape",
+      "partition": null,
+      "thread": null,
+      "element": [
+        7,
+        7
+      ]
+    }
+  }
+}

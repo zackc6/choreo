@@ -134,3 +134,14 @@ def test_cli_lower_stamps_graph_hash(tmp_path, capsys):
     assert pin["cache_key"]["graph_hash"] == digest
     assert pin["cache_key"]["hw_id"] == "nvidia.b200.80gb"
     assert pin["target"] == "cuda"
+
+
+def test_handshake_goldens_match_live_source_pin(tmp_path):
+    for name in ("copy", "gemm"):
+        k = kernel_from_dict(json.loads((ROOT / "examples" / f"{name}.json").read_text()))
+        live = materialize(k, tmp_path / name, emit="source").as_k()
+        gold = json.loads((ROOT / "examples" / f"{name}.pin.json").read_text())
+        _assert_lintel_key(live["cache_key"])
+        assert live == gold
+        assert gold["sink_id"] == "cuda.cxx"
+        assert gold["cache_key"]["adapter_id"] == FACE_ADAPTER_ID
