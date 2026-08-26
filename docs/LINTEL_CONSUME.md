@@ -24,7 +24,7 @@ python3 -m choreoir lower examples/gemm.json -o /tmp/npu --target ascend-a2 --em
 
 Year-1 allowlist: `copy`, `gemm_tile` (`Pipeline.depth=3` on gemm). Face `adapter_id`: `choreo.v0`.
 
-`choreo consume-check PATH` is the machine checker of this contract against a Lintel checkout (no `src/`; year-1 slots `copy`/`gemm_tile`; NVIDIA freeze `choreoir==0.1.11;nvcc.cubin` + `artifact.kind=cubin` + `artifact.launch`; session Finding JSON as a sibling of `reject`; propose kernel is the full AST; `%k` digest matches canonical JSON; no Triton as the year-1 sink). It does not freeze, land, or serve \(F\). Tests use tmp mini trees so CI does not clone Lintel. `examples/later/` is skipped. Local absorb (`/tmp/lintel-probe`) still pins 0.1.10 until a follow-on absorb; `origin/main` (`fda2db2`) still fails (Triton pin, attn slots, `artifact.kind=choreo_kernel`, no `launch`).
+`choreo consume-check PATH` is the machine checker of this contract against a Lintel checkout (no `src/`; year-1 slots `copy`/`gemm_tile`; NVIDIA freeze `choreoir==0.1.11;nvcc.cubin` + `artifact.kind=cubin` + `artifact.launch`; session Finding JSON as a sibling of `reject`; propose kernel is the full AST; `%k` digest matches canonical JSON; no Triton as the year-1 sink). It does not freeze, land, or serve \(F\). Tests use tmp mini trees so CI does not clone Lintel. `examples/later/` is skipped. Local absorb (`/tmp/lintel-probe` `c06dabc`) pins 0.1.11 and passes; `origin/main` (`fda2db2`) still fails (Triton pin, attn slots, `artifact.kind=choreo_kernel`, no `launch`).
 
 Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower --emit`):
 
@@ -120,8 +120,9 @@ A consume absorb is committed locally on lintel `main` but **cannot be pushed** 
 - `1bdf4b6` copy `pin.launch` onto admit-record `artifact.launch` / freeze event (`<<<grid, block>>>`, not in `%k`)
 - `c16a6b8` land `%k` example notes `artifact.launch`
 - `4686061` consume choreoir 0.1.10: CCE stages smem UB by `Pipeline.depth`; NVIDIA land `%k` `sha256:181ce8b6…` / Ascend sibling `sha256:d12ee57f…`; copy cubin digest still `07aadb61…`; gemm NPU-bin `5ea1a7a8…`
+- `c06dabc` consume choreoir 0.1.11: CCE `vmadd` indexed by layout stride; NVIDIA land `%k` `sha256:ae48c242…` / Ascend sibling `sha256:a6a93f7c…`; copy cubin digest still `07aadb61…`; gemm NPU-bin `5f0190f3…`
 
-Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`. A throwaway `git am` of that 19-commit series onto origin `fda2db2` applies clean: year-1 slots `copy` / `gemm_tile`, freeze `artifact.kind=cubin` (`choreoir==0.1.10;nvcc.cubin`) plus `artifact.launch`, 35 session events, no `src/`.
+Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`. A throwaway `git am` of that 20-commit series onto origin `fda2db2` applies clean: year-1 slots `copy` / `gemm_tile`, freeze `artifact.kind=cubin` (`choreoir==0.1.11;nvcc.cubin`) plus `artifact.launch`, 35 session events, no `src/`.
 
 Files on the Lintel side that should absorb this: `docs/CHOREO.md`, `docs/DATA_PLANE.md`, `docs/ADAPTERS.md`, `docs/YEAR1.md`, `docs/SURVEY_MATCH.md`, `docs/LINTEL_IR.md`, `docs/POC.md`, `examples/admit-record.json` `compiler_ver` / `adapter_id` / `enum_id` / `cache_key_digest`, `examples/session-log.jsonl`, `schemas/session-event.v0.schema.json` Finding JSON, `schemas/adapter-proposal.v0.schema.json` op enum, `schemas/admit-record.v0.schema.json` `artifact.kind`, `examples/poc/*.json` / `*.lintel`, `examples/choreo/`, `examples/choreo/fails/`.
 
