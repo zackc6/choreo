@@ -48,9 +48,18 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 
 ## `{where}` (`adapter-proposal.v0`)
 
-`choreo propose` emits `lintel.adapter_proposal.v0`. On admit error, `reject.{where,hint,finding}` is the CFG edge. `where` ∈ `W|L|S|V` only. V is opt-in (`--tensors` + `--expected`); without those flags the envelope is W/L/S. `compile_ok` is Lintel's **post-sink** gate (missing `nvcc`/`ccec` here is a W **warning**, not that gate). The nested `finding` uses Lintel's shape (`gate`, `node`, `msg`, `element`) — it does **not** repeat `where`.
+`choreo propose` emits `lintel.adapter_proposal.v0`. On admit error, `reject.{where,hint,finding}` is the CFG edge. `where` ∈ `W|L|S|V` only. V is opt-in (`--tensors` + `--expected`); without those flags the envelope is W/L/S. `compile_ok` is Lintel's **post-sink** gate (missing `nvcc`/`ccec` here is a W **warning**, not that gate). The nested `finding` uses Lintel's shape (`gate`, `severity`, `node`, `msg`, optional `partition` / `thread` / `element`) — it does **not** repeat `where`.
 
-Canonical Kernel JSON is lowercase ops (`copy`, `mma`, …). Lintel examples that use PascalCase (`Copy`) are accepted on **read**. This tree also has `reduce` / `yield` and `target` / `compiler_ver` on the Kernel — Choreo is source of truth for Kernel encoding. Schema: [`schemas/adapter-proposal.v0.schema.json`](../schemas/adapter-proposal.v0.schema.json).
+Lintel **copies** that envelope onto the session stream. It does not own the Finding; it stores it:
+
+| Envelope | Finding JSON | Kernel AST |
+|---|---|---|
+| `adapter-proposal.v0` | nested under `reject.finding` | `kernel` is the full AST |
+| `session-event.v0` `propose` / `gate` | payload **sibling** of `reject` (`reject.additionalProperties: false`) | `propose.payload.kernel` is the full AST (`name`/`buffers`/`partitions`/`body`), not a name stub |
+
+Copy rule (Q1 adapter plugin): `finding = reject.finding`; session `reject = {where, hint, reason}`; session `kernel = envelope.kernel`. This tree does not emit session events.
+
+Canonical Kernel JSON is lowercase ops (`copy`, `mma`, …). Lintel examples that use PascalCase (`Copy`) are accepted on **read**. This tree also has `reduce` / `yield` and `target` / `compiler_ver` on the Kernel — Choreo is source of truth for Kernel encoding. Schema: [`schemas/adapter-proposal.v0.schema.json`](../schemas/adapter-proposal.v0.schema.json). Handshake test: [`tests/test_lintel_handshake.py`](../tests/test_lintel_handshake.py).
 
 ## Sinks (not `print_triton`)
 
@@ -94,6 +103,7 @@ A consume absorb is committed locally on lintel `main` but **cannot be pushed** 
 - `0203863` `cache_key_digest` is sha256 of canonical `cache-key.v0` JSON (was a leftover Triton-era example hash)
 - `9436e8f` session log is Choreo `copy` / `gemm_tile` walks (`{where: L}` edge, freeze under `%k`, serving revert) — not Triton knobs
 - `4078eba` adapter-fail `propose`/`gate` store Finding JSON; session log walks W (`pipeline_empty`) / L (`layout_cover`) / S (`sync_race`) / V (`value_mismatch`); T5-lite table maps those `{where}` letters to CFG reject vs a commit on this `main`
+- `54d1dbd` propose payload kernel is the full AST (name/buffers/partitions/body), not a name stub; session-event schema requires those fields
 
 Land those commits on lintel `origin/main` when write exists. Do not add `src/` or vendor `choreoir`.
 
