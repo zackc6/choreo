@@ -21,6 +21,7 @@ from .lower import Lowered, find_nvcc, lower, materialize
 from .print_ascend import print_ascend
 from .print_cuda import print_cuda
 from .print_triton import print_triton
+from .toolchain import ensure_nvcc, find_cann
 
 __all__ = [
     "Barrier",
@@ -46,6 +47,8 @@ __all__ = [
     "lower",
     "materialize",
     "find_nvcc",
+    "find_cann",
+    "ensure_nvcc",
     "print_ascend",
     "print_cuda",
     "print_triton",

@@ -65,7 +65,7 @@ This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kern
 | NVIDIA GPU (cubin-bound stand-in) | `cuda`, `cuda-sm*` | CUDA C++ (`print_cuda`); `nvcc` when present | smem → `__shared__`, Copy → gmem↔onchip loops, Barrier → `__syncthreads`, Pipeline → staged smem, Mma ISA *name* from target. `lower().text` is this source. Not the designed cubin ISA. |
 | Ascend NPU | `ascend*` | TileLang (`print_ascend`) + CANN when present | GM args + spaces → GM/L1/L0C/UB, `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined` |
 
-`materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes the cubin-bound stand-in (`.cu` / `.npu.py`) plus the Triton M2 sidecar, and may try a device toolchain. Missing `nvcc` / TileLang is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile` — both write results back to gmem (load / math / store partitions). Do not glue NVIDIA and Ascend spaces into one enum. Do not treat the stand-in as the designed L5 path.
+`materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes the cubin-bound stand-in (`.cu` / `.npu.py`) plus the Triton M2 sidecar, and tries `nvcc` / TileLang+CANN when present. Success writes a real ELF cubin or NPU library and pins `artifact_sha256` next to `source_sha256` / `compiler_ver` for Lintel `%k`. Missing toolchain is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile` — both write results back to gmem (load / math / store partitions). Do not glue NVIDIA and Ascend spaces into one enum. Do not treat homemade PTX/Davinci as the L5 design.
 
 Choreo **storage layout** is an explicit contract for admit and for the sinks (cheap `shape × stride`). Work partitioning lives in `Partition` + `Layout`.
 

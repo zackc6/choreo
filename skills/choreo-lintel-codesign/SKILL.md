@@ -70,9 +70,9 @@ This compiler object **always** lowers to both families. The **path is assumed**
 
 Stand-in printers **must consume** partition widths, `Pipeline.depth`, layouts (`BLOCK_*`), `Barrier`, memory spaces, and gmem writeback — not comments-only:
 
-- **NVIDIA cubin-bound stand-in:** CUDA C++ walk (`print_cuda`) is `lower().text`. `materialize(..., emit='cubin')` may run `nvcc` when present; otherwise a warning and `.cu` only.
+- **NVIDIA cubin-bound stand-in:** CUDA C++ walk (`print_cuda`) is `lower().text`. `materialize(..., emit='cubin')` runs official `nvcc -cubin` when present (discovers `~/.local/cuda-nvcc`, `CUDA_HOME`, `CHOREO_NVCC`); otherwise a warning and `.cu` only. Manifest pins `artifact_sha256` of the ELF.
 - **NVIDIA M2 sidecar:** Triton knobs (`print_triton`, written as `*.triton.py`). Kill switch if the designed cubin never lands.
-- **Ascend stand-in:** TileLang-Ascend with GM function args. `emit='npu-bin'` may try CANN/TileLang; otherwise a warning and the `.npu.py` only.
+- **Ascend stand-in:** TileLang-Ascend with GM function args. `emit='npu-bin'` loads the generated prim_func and calls `tilelang.compile` when TileLang **and** CANN/bisheng are present; otherwise a warning and the `.npu.py` only.
 
 Do not unify NVIDIA smem and Ascend L1 into one `onchip` enum. Do not add a second live face. Do not mutate PTX. Device toolchains stay sinks we print *into*.
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -17,6 +18,8 @@ from choreoir.check import check
 from choreoir.jsonio import kernel_from_dict
 from choreoir.lower import find_nvcc, lower, materialize
 from choreoir.print_triton import print_triton
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _copy_k(**kwargs) -> Kernel:
@@ -168,7 +171,12 @@ def test_print_triton_still_works_without_target():
     assert "@triton.jit" in text
 
 
-ROOT = Path(__file__).resolve().parents[1]
+def test_find_nvcc_discovers_local_prefix():
+    nvcc = find_nvcc()
+    if nvcc is None:
+        pytest.skip("nvcc not installed")
+    assert Path(nvcc).name == "nvcc"
+    assert Path(nvcc).is_file()
 
 
 def test_examples_lower_cuda():
@@ -177,7 +185,7 @@ def test_examples_lower_cuda():
         out = lower(k)
         assert out.errors() == [], out.findings
         assert out.family == "cuda"
-        assert out.compiler_ver == "0.1.1"
+        assert out.compiler_ver == "0.1.2"
         assert "__global__" in out.text
         assert out.triton_text and "@triton.jit" in out.triton_text
         assert out.cuda_text == out.text
@@ -238,7 +246,7 @@ def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
         assert out.artifact_kind == "source"
     assert (tmp_path / "manifest.json").is_file()
     man = json.loads((tmp_path / "manifest.json").read_text())
-    assert man["compiler_ver"] == "0.1.1"
+    assert man["compiler_ver"] == "0.1.2"
     assert out.source_sha256
 
 
@@ -258,6 +266,16 @@ def test_materialize_cubin_with_nvcc_is_elf(tmp_path):
     k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
     out = materialize(k, tmp_path, emit="cubin")
     assert not out.errors(), out.findings
-    assert out.artifact_kind == "cubin"
+    assert out.artifact_kind == "cubin", out.findings
     data = Path(out.artifact_path).read_bytes()
     assert data[:4] == b"\x7fELF"
+    assert out.artifact_sha256 == hashlib.sha256(data).hexdigest()
+    assert "nvcc" in out.toolchain
+    man = json.loads((tmp_path / "manifest.json").read_text())
+    assert man["artifact_kind"] == "cubin"
+    assert man["artifact_sha256"] == out.artifact_sha256
+    # copy kernel too
+    ck = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    cout = materialize(ck, tmp_path / "copy", emit="cubin")
+    assert cout.artifact_kind == "cubin", cout.findings
+    assert Path(cout.artifact_path).read_bytes()[:4] == b"\x7fELF"

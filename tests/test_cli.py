@@ -60,3 +60,8 @@ def test_cli_lower_cubin_manifest(tmp_path, capsys):
     assert man["family"] == "cuda"
     assert (tmp_path / "gemm_tile.cu").is_file()
     assert man["source_sha256"]
+    assert "artifact_sha256" in man
+    if man["artifact_kind"] == "cubin":
+        assert Path(man["artifact_path"]).read_bytes()[:4] == b"\x7fELF"
+        assert man["artifact_sha256"]
+        assert "nvcc" in man["toolchain"]

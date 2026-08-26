@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +14,7 @@ from .knobs import YEAR1_KERNELS, ScheduleFacts, facts_from_kernel, ident, targe
 from .print_ascend import print_ascend
 from .print_cuda import print_cuda
 from .print_triton import print_triton
+from .toolchain import find_cann, find_nvcc, nvcc_include_dir
 
 
 @dataclass(frozen=True)
@@ -30,6 +29,8 @@ class Lowered:
     cuda_text: str = ""
     triton_text: str = ""
     compiler_ver: str = ""
+    artifact_sha256: str = ""
+    toolchain: str = ""
 
     def errors(self) -> list[Finding]:
         return [f for f in self.findings if f.severity == "error"]
@@ -40,7 +41,9 @@ class Lowered:
             "artifact_kind": self.artifact_kind,
             "artifact_path": self.artifact_path,
             "source_sha256": self.source_sha256,
+            "artifact_sha256": self.artifact_sha256,
             "compiler_ver": self.compiler_ver,
+            "toolchain": self.toolchain,
             "facts": self.facts.as_dict() if self.facts else None,
             "findings": [f.as_dict() for f in self.findings],
         }
@@ -117,6 +120,8 @@ def materialize(
     findings = list(result.findings)
     artifact_kind = "source"
     artifact_path: str | None = None
+    artifact_sha256 = ""
+    toolchain = ""
 
     src_path = out_dir / f"{name}.{'npu.py' if result.family == 'ascend' else 'cu'}"
     src_path.write_text(result.text)
@@ -133,12 +138,17 @@ def materialize(
             return _with_findings(result, findings)
         cubin = out_dir / f"{name}.cubin"
         cu = out_dir / f"{name}.cu"
-        extra, ok = _try_nvcc(cu, cubin, result.facts.arch if result.facts else "sm_80")
+        extra, ok, nvcc_path = _try_nvcc(
+            cu, cubin, result.facts.arch if result.facts else "sm_80"
+        )
         findings.extend(extra)
         if ok:
             artifact_kind, artifact_path = "cubin", str(cubin)
+            artifact_sha256 = _sha256_file(cubin)
+            toolchain = nvcc_path or "nvcc"
         else:
             artifact_path = str(out_dir / f"{name}.cu")
+            toolchain = nvcc_path or "nvcc-missing"
     elif emit == "npu-bin":
         if result.family != "ascend":
             findings.append(
@@ -150,12 +160,15 @@ def materialize(
                 )
             )
             return _with_findings(result, findings)
-        extra, bin_path = _try_npu_bin(src_path, out_dir / f"{name}.npu.bin")
+        extra, bin_path, tool = _try_npu_bin(src_path, out_dir / f"{name}.npu.bin", name)
         findings.extend(extra)
         if bin_path:
             artifact_kind, artifact_path = "npu-bin", bin_path
+            artifact_sha256 = _sha256_file(Path(bin_path))
+            toolchain = tool
         else:
             artifact_path = str(src_path)
+            toolchain = tool or "cann-missing"
     else:
         artifact_path = str(src_path)
 
@@ -170,6 +183,8 @@ def materialize(
         result.cuda_text,
         result.triton_text,
         result.compiler_ver,
+        artifact_sha256,
+        toolchain,
     )
     (out_dir / "manifest.json").write_text(json.dumps(out.as_manifest(), indent=2) + "\n")
     return out
@@ -187,34 +202,16 @@ def _with_findings(result: Lowered, findings: list[Finding]) -> Lowered:
         result.cuda_text,
         result.triton_text,
         result.compiler_ver,
+        result.artifact_sha256,
+        result.toolchain,
     )
 
 
-def find_nvcc() -> str | None:
-    """Locate nvcc without requiring it in the pin. Missing is a warning, not a fake cubin."""
-    candidates: list[str] = []
-    which = shutil.which("nvcc")
-    if which:
-        candidates.append(which)
-    for key in ("CUDA_HOME", "CUDA_PATH"):
-        home = os.environ.get(key)
-        if home:
-            candidates.append(str(Path(home) / "bin" / "nvcc"))
-    candidates.extend(("/usr/local/cuda/bin/nvcc", "/usr/bin/nvcc"))
-    try:
-        import nvidia.cuda_nvcc as nvcc_pkg
-
-        for root in getattr(nvcc_pkg, "__path__", []):
-            candidates.append(str(Path(root) / "bin" / "nvcc"))
-    except ImportError:
-        pass
-    for path in candidates:
-        if path and Path(path).is_file() and os.access(path, os.X_OK):
-            return path
-    return None
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _try_nvcc(cu: Path, cubin: Path, arch: str) -> tuple[list[Finding], bool]:
+def _try_nvcc(cu: Path, cubin: Path, arch: str) -> tuple[list[Finding], bool, str]:
     nvcc = find_nvcc()
     if nvcc is None:
         return (
@@ -227,13 +224,14 @@ def _try_nvcc(cu: Path, cubin: Path, arch: str) -> tuple[list[Finding], bool]:
                 )
             ],
             False,
+            "",
         )
-    proc = subprocess.run(
-        [nvcc, f"-arch={arch}", "-cubin", "-o", str(cubin), str(cu)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    cmd = [nvcc]
+    inc = nvcc_include_dir(nvcc)
+    if inc is not None:
+        cmd += ["-I", str(inc)]
+    cmd += [f"-arch={arch}", "-cubin", "-o", str(cubin), str(cu)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         return (
             [
@@ -245,12 +243,12 @@ def _try_nvcc(cu: Path, cubin: Path, arch: str) -> tuple[list[Finding], bool]:
                 )
             ],
             False,
+            nvcc,
         )
-    return [], True
+    return [], True, nvcc
 
 
-def _try_npu_bin(src: Path, dest: Path) -> tuple[list[Finding], str | None]:
-    del dest
+def _try_npu_bin(src: Path, dest: Path, name: str) -> tuple[list[Finding], str | None, str]:
     try:
         __import__("tilelang")
     except ImportError:
@@ -264,15 +262,60 @@ def _try_npu_bin(src: Path, dest: Path) -> tuple[list[Finding], str | None]:
                 )
             ],
             None,
+            "",
         )
-    return (
-        [
-            Finding(
-                "W",
-                "warning",
-                "kernel",
-                "tilelang imported but NPU compile is not wired in this pin; source only",
-            )
-        ],
-        None,
-    )
+    cann = find_cann()
+    if cann is None:
+        return (
+            [
+                Finding(
+                    "W",
+                    "warning",
+                    "kernel",
+                    f"CANN/bisheng missing; wrote {src.name} (NPU-bin sink, no binary)",
+                )
+            ],
+            None,
+            "tilelang",
+        )
+    try:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("_choreo_npu_kernel", src)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"cannot load {src}")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        fn = getattr(mod, name, None)
+        if fn is None:
+            raise RuntimeError(f"no prim_func {name!r} in {src.name}")
+        import tilelang
+
+        compiled = tilelang.compile(fn, target="npuir")
+        lib_path = None
+        for attr in ("lib_path", "path", "artifact_path"):
+            lib_path = getattr(compiled, attr, None)
+            if lib_path:
+                break
+        if not lib_path:
+            raise RuntimeError(f"tilelang.compile returned {type(compiled)!r} with no library path")
+        src_lib = Path(str(lib_path))
+        dest.write_bytes(src_lib.read_bytes())
+        return [], str(dest), f"tilelang+{cann}"
+    except Exception as exc:
+        return (
+            [
+                Finding(
+                    "W",
+                    "warning",
+                    "kernel",
+                    f"tilelang/CANN compile failed: {str(exc)[:400]}",
+                )
+            ],
+            None,
+            f"tilelang+{cann}",
+        )
+
+
+# find_nvcc re-exported for tests / CLI
+__all__ = ["Lowered", "find_nvcc", "lower", "materialize"]

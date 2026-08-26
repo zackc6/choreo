@@ -1,4 +1,4 @@
 {
   "name": "Choreo IR",
-  "install": "python3 -m pip install -e '.[dev]'"
+  "install": "python3 -m pip install -e '.[dev]'\nCHOREO_FETCH_NVCC=1 python3 -c \"from choreoir.toolchain import ensure_nvcc; print(ensure_nvcc() or 'nvcc-missing')\""
 }
