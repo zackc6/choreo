@@ -102,7 +102,7 @@ Only one is a Lintel object.
 
 Gray zone that stays T5, not M3: extra Finding rules / cost cal loaded from a **versioned bundle** whose hash is in `%k`. `check` stays a pure function. No LLM in `check`. Year-1 still routes that through git on `main` (safer replay; slower than Cake’s in-job harness).
 
-Until the Undergo loop has a real fail corpus, “not fixed” is a **process claim**. Two allowlisted kernels plus `examples/fails/` (localized `{where}`) are the year-1 T5-lite corpus.
+Until the Undergo loop has a real fail corpus, “not fixed” is a **process claim**. Two allowlisted kernels plus `examples/fails/` (localized `{where}` including V) are the year-1 T5-lite corpus.
 
 ## Union is of admit signals, not languages
 
