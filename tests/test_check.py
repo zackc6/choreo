@@ -43,6 +43,9 @@ def test_layout_rank_mismatch():
     )
     fs = check(k)
     assert any(f.gate == "L" for f in fs)
+    shape = [f for f in fs if f.gate == "L" and "copy shape" in f.msg]
+    assert shape and shape[0].element == (7, 7)
+    assert shape[0].as_dict()["where"] == "L"
 
 
 def test_cross_partition_copy_needs_barrier():
@@ -149,7 +152,17 @@ def test_finding_schema_keys():
         body=(Copy("c0", "A", "missing", "load"),),
     )
     d = check(k)[0].as_dict()
-    assert set(d) == {"gate", "severity", "node", "partition", "thread", "element", "msg"}
+    assert set(d) == {
+        "where",
+        "gate",
+        "severity",
+        "node",
+        "partition",
+        "thread",
+        "element",
+        "msg",
+    }
+    assert d["where"] == d["gate"] == "W"
 
 
 def test_layout_span_localizes_last_element():

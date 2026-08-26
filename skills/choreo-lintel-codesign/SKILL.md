@@ -102,8 +102,9 @@ When changing this repo, ask:
 - [ ] Does NVIDIA *and* Ascend `lower()` still consume the new schedule fields?
 - [ ] Is this inventing L5/ISA (PTX, SASS, Davinci) instead of waiting for the later lowering design? If yes, stop.
 - [ ] Could this be read as mid-walk self-modify of `check` (M3)? If yes, stop.
+- [ ] Does this grow Choreo into L2/L3/L6/L7 (graph, MLIR, Inductor, cluster, Event Tensor)? If yes, stop — that is a Lintel tool or a *new* face, not this AST.
 - [ ] Are GPU and Ascend still separate spaces/roles (no unified `onchip`)?
-- [ ] Are findings still `{gate, node, where?}` with no scraped stdout as the agent API?
+- [ ] Are findings still `{where, gate, node, ...}` with no scraped stdout as the agent API?
 
 ## Do not
 
@@ -112,6 +113,7 @@ When changing this repo, ask:
 - Add Z3, CuTe work-partition, or a second year-1 compiler.
 - Put TVM in the pin just to wrap TIRx; `@tirx.v0` is an optional door for TVM-native partners.
 - Treat Helion / KernelEvolve / TritorX / generic coding agents as year-1 faces (no W/L/S/`%k`).
+- Grow Choreo into FX / HLO / MLIR / Inductor / cluster / Event Tensor. Later L1–L7 coverage is Lintel talking to those compilers, or a new face package — not new opcodes here.
 - Run mlirAgent-style “rewrite the dialect” experiments as the mutation API.
 - Rewrite `check` or add opcodes **inside** one specialize walk. That is M3, not T5.
 

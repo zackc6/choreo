@@ -106,6 +106,7 @@ class Kernel:
     body: tuple[Op, ...] = ()
     attrs: dict[str, str] = field(default_factory=dict)
     target: str = ""  # cuda | cuda-sm90 | cuda-sm100 | ascend-a2 | ...
+    compiler_ver: str = "0.1.0"  # pin for Lintel %k; not mutated inside one walk
 
     def buffer(self, name: str) -> Buffer | None:
         return next((b for b in self.buffers if b.name == name), None)

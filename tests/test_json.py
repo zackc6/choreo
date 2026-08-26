@@ -14,3 +14,13 @@ def test_examples_roundtrip_and_admit():
         assert check(k) == []
         again = kernel_from_dict(kernel_to_dict(k))
         assert kernel_to_dict(again) == kernel_to_dict(k)
+        assert kernel_to_dict(k)["compiler_ver"] == "0.1.0"
+
+
+def test_compiler_ver_roundtrip_pin():
+    raw = __import__("json").loads((ROOT / "examples" / "copy.json").read_text())
+    k = kernel_from_dict(raw)
+    k.compiler_ver = "0.2.0-gate"
+    d = kernel_to_dict(k)
+    assert d["compiler_ver"] == "0.2.0-gate"
+    assert kernel_from_dict(d).compiler_ver == "0.2.0-gate"

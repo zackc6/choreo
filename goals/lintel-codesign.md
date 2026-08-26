@@ -53,6 +53,22 @@ Year-1 Lintel×Choreo is M1 **cut to one search band**:
 
 C4 is an L4 *sink* fight, not a Lintel-IR fight. A second DSL is a new adapter / `%k`, not a second live face. `{where}` JSON from this tree is a **CFG edge in Lintel**, not a `reject` enum. Do not put that CFG in `choreoir`.
 
+## Later: L1–L7 without growing this dialect
+
+**Choreo does not become the IR for all bands.** Graph, cluster, MLIR, and Inductor are **other legality/lower surfaces**. Soft merge unifies the *controller* (Lintel + \(F\)), not the execution substrate. One Kernel AST that is also FX/HLO/MLIR/place is survey §5.1.1 (do not unify portable graph and peak kernel DSL) and the C4 trap (IR only we compile).
+
+| Band | Later extension | Not Choreo |
+|---|---|---|
+| **L1** capture / cut | Lintel `triage` / fingerprint / skip cold regions | No Torch rewrite, no FX dialect in this AST |
+| **L2** portable graph | `graph_hash` in `%k`; optional *other* face (StableHLO) as a tool | No fusion/graph ops on `Kernel` |
+| **L3** mid-IR | Pin Inductor/MLIR in `compiler_ver`; admit stays classical | No mlirAgent-style rewrite; no MLIR dumped into Choreo |
+| **L4** kernel DSL | This tree. T5: gates + sinks + rare spec bumps | Does not become the SKU |
+| **L5** ISA | Designed later as a *sink* | No PTX mutation; no ISA company |
+| **L6** serving | Lintel \(F\) + freeze; load the binary | No Event Tensor megakernel IR here |
+| **L7** place / cluster | Lintel gate if ever | No cluster IR in `choreoir` |
+
+Horizon B, if it happens, is **Lintel proposing at more bands** (same `{where}`-shaped admit, rolled into \(F\)), each band keeping its own compiler. A second typed face for graphs would be a **new package**, not new Choreo opcodes. Year-1 stays L4-only search.
+
 ## Not a compiler company vs this compiler object
 
 **Not a compiler company** = Lintel’s product is the control plane (vendor-neutral admit / freeze / \(F\)), not selling Cake, TIRx, or a TVM distro. Do not demo “we compiled Choreo.”
@@ -144,7 +160,7 @@ SLA allowlists two complete kernels. Payload is a program (kind 1); the *deal* i
 ## Non-goals (this tree)
 
 - Control plane: MCP, budget/stop, serving \(F\), agent DAGs, Lintel IR, `%k` / `%w`.
-- Joint search over L2/L3/L6/L7. Year-1 does not propose fusion or place.
+- Joint search over L2/L3/L6/L7. Year-1 does not propose fusion or place. Later, Lintel may *talk to* those bands; Choreo still does not *become* them.
 - A new execution ISA. Do not replace `opt` / Inductor / Triton / CANN as the device compiler. Do not design L5 in lieu of the later cubin/NPU path.
 - SMT layout (Argus `oracle`) as a year-1 compiler.
 - Helion / KernelEvolve / TritorX productize — out of year-1 SKU.

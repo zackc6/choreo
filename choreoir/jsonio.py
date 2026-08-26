@@ -34,6 +34,7 @@ def kernel_to_dict(k: Kernel) -> dict:
         ],
         "body": [_op_to_dict(op) for op in k.body],
         "attrs": dict(k.attrs),
+        "compiler_ver": k.compiler_ver,
     }
 
 
@@ -58,6 +59,7 @@ def kernel_from_dict(d: dict) -> Kernel:
         body=tuple(_op_from_dict(op) for op in d.get("body", [])),
         attrs=dict(d.get("attrs", {})),
         target=str(d.get("target", "")),
+        compiler_ver=str(d.get("compiler_ver", "0.1.0")),
     )
 
 

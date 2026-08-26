@@ -49,7 +49,7 @@ Vendor DSLs (TileLang, Gluon, TLX, CuTe DSL, FlyDSL, ThunderKittens) are **sinks
 ## Non-goals (explicit)
 
 - Control plane: multi-agent loops, MCP, budget/stop, serving \(F\), workflow compile (that is Lintel IR).
-- One IR that is both portable HLO and peak kernel DSL (§5.1.1: do not unify those).
+- One IR that is both portable HLO and peak kernel DSL (§5.1.1: do not unify those). Later L1–L7 coverage is Lintel + per-band tools, not Choreo opcodes for graph/MLIR/place.
 - Fluency dumps of LLVM, MLIR, Triton, or PTX as the mutation language.
 - Claiming library-class TFLOPS or serving A/B in v1 (C2 stays open until oracles exist).
 - Replacing `opt` / Inductor / Triton / CANN as the **device** compiler. This tree **does** lower *into* them.

@@ -16,7 +16,7 @@ Co-design with Lintel: [`goals/lintel-codesign.md`](../goals/lintel-codesign.md)
 ## 2. Core sorts
 
 ```text
-Kernel      = { name, target, params, buffers, partitions, body, attrs }
+Kernel      = { name, target, compiler_ver, params, buffers, partitions, body, attrs }
 Param       = { name, dtype, shape }            # shape may contain symbols
 Buffer      = { name, space, layout, dtype }
 Layout      = { shape, stride }                 # CuTe-style pair; v1: static ints
@@ -73,6 +73,7 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
 
 ```json
 {
+  "where": "W|L|S|V",
   "gate": "W|L|S|V",
   "severity": "error|warning",
   "node": "op.3",
@@ -83,7 +84,7 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
 }
 ```
 
-This is the only feedback surface intended for a future agent. Not a control-plane API: it is compiler diagnostics.
+This is the only feedback surface intended for a future agent. `where` is the Lintel CFG-edge name (same value as `gate`). Not a control-plane API: it is compiler diagnostics. `compiler_ver` on the Kernel JSON is a pin for Lintel `%k`; it is not mutated inside one admit/lower walk.
 
 Kernel JSON (construct / inspect / mutate) is defined by `choreoir.jsonio.kernel_to_dict`. Ops are tagged with `"op": "copy"|"mma"|"reduce"|"barrier"|"pipeline"|"yield"`.
 

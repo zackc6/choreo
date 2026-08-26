@@ -27,6 +27,7 @@ class Finding:
 
     def as_dict(self) -> dict:
         return {
+            "where": self.gate,  # W|L|S|V — Lintel CFG edge; same value as gate
             "gate": self.gate,
             "severity": self.severity,
             "node": self.node,
@@ -169,15 +170,34 @@ def _layout(k: Kernel) -> list[Finding]:
                         "error",
                         op.id,
                         f"copy shape {src.layout.shape} -> {dst.layout.shape}",
+                        element=tuple(max(d - 1, 0) for d in src.layout.shape),
                     )
                 )
             if src and dst and src.dtype != dst.dtype:
-                f.append(Finding("L", "error", op.id, f"copy dtype {src.dtype} -> {dst.dtype}"))
+                f.append(
+                    Finding(
+                        "L",
+                        "error",
+                        op.id,
+                        f"copy dtype {src.dtype} -> {dst.dtype}",
+                        element=tuple(max(d - 1, 0) for d in src.layout.shape)
+                        if src.layout.shape
+                        else None,
+                    )
+                )
         elif isinstance(op, Mma):
             a, b, c = k.buffer(op.a), k.buffer(op.b), k.buffer(op.c)
             if a and b and c:
                 if len(a.layout.shape) != 2 or len(b.layout.shape) != 2 or len(c.layout.shape) != 2:
-                    f.append(Finding("L", "error", op.id, "mma buffers must be rank-2"))
+                    f.append(
+                        Finding(
+                            "L",
+                            "error",
+                            op.id,
+                            "mma buffers must be rank-2",
+                            element=(0, 0),
+                        )
+                    )
                 elif a.layout.shape[1] != b.layout.shape[0] or c.layout.shape != (
                     a.layout.shape[0],
                     b.layout.shape[1],
@@ -188,6 +208,9 @@ def _layout(k: Kernel) -> list[Finding]:
                             "error",
                             op.id,
                             "mma shape mismatch (A MxK, B KxN, C MxN)",
+                            element=tuple(max(d - 1, 0) for d in c.layout.shape)
+                            if len(c.layout.shape) == 2
+                            else (0, 0),
                         )
                     )
         elif isinstance(op, Reduce):
