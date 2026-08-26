@@ -75,6 +75,8 @@ python3 -m pip install -e '.[dev]'
 python3 -m pytest -q
 ```
 
+Public GitHub Actions fetches official `nvcc` (`CHOREO_FETCH_NVCC=1`) and sets `CHOREO_REQUIRE_NVCC=1` so NVIDIA cubin tests run on `main`. `ccec` is not a public redist; Ascend NPU-bin tests skip there.
+
 Admit / simulate / print from JSON (see `examples/`):
 
 ```bash

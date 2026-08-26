@@ -103,6 +103,26 @@ def test_value_findings_stay_opt_in():
     assert any(f.gate == "V" for f in fs)
 
 
+def test_nvcc_cubin_pin_is_lintel_payload(tmp_path):
+    """GitHub CI fetches official nvcc so this is not a skip on main."""
+    import pytest
+
+    if find_nvcc() is None:
+        pytest.skip("need official nvcc")
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "copy.json").read_text()))
+    out = materialize(k, tmp_path, emit="cubin")
+    assert not out.errors(), out.findings
+    assert out.artifact_kind == "cubin"
+    pin = json.loads((tmp_path / "pin.json").read_text())
+    assert pin["sink_id"] == "nvcc.cubin"
+    assert pin["artifact_kind"] == "cubin"
+    assert pin["cache_key"]["adapter_id"] == "choreo.v0"
+    assert pin["cache_key"]["compiler_ver"].endswith(";nvcc.cubin")
+    assert pin["cache_key_digest"] == cache_key_digest(pin["cache_key"])
+    assert Path(out.artifact_path).read_bytes()[:4] == b"\x7fELF"
+    assert "target" not in pin["cache_key"]
+
+
 def test_per_target_sinks_split_cache_key(tmp_path):
     """Same copy Kernel, two sinks → two %k. Not a second face. Not a third kernel."""
     import pytest
