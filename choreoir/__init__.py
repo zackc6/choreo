@@ -1,4 +1,4 @@
-"""Choreo IR: typed L4 kernel choreography (data plane)."""
+"""Choreo IR: typed kernel choreography for the data plane — Lintel's L4 face, not a compiler company."""
 
 from .ast import (
     Barrier,

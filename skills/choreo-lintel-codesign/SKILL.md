@@ -11,6 +11,8 @@ description: >-
 
 Read [`goals/lintel-codesign.md`](goals/lintel-codesign.md) for the product cut. This skill is the implementer SOP for **this repo**.
 
+Choreo is a typed kernel choreography IR for the data plane — Lintel’s L4 face, not a compiler company. This tree is the compiler object: construct, check, simulate, and print. Not an orchestrator, MCP server, agent graph, or fitness-\(F\) controller.
+
 ## When to use
 
 - Editing `choreoir/`, `docs/SPEC.md`, `README.md`, `goals/`, or this skill.

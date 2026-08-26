@@ -1,7 +1,7 @@
 [project]
 name = "choreoir"
 version = "0.1.0"
-description = "Typed L4 kernel choreography IR (data plane). Not an agent runtime."
+description = "Typed kernel choreography IR for the data plane — Lintel's L4 face, not a compiler company."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []

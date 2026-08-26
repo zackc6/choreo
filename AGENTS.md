@@ -1,6 +1,8 @@
 # Agent instructions
 
-This tree is **Choreo IR**: Lintel’s typed L4 **data plane**. Control plane lives in Lintel, not here.
+**Choreo IR** is a typed kernel choreography IR for the data plane — Lintel’s L4 face, not a compiler company.
+
+This tree is the compiler object: construct, check, simulate, and print. It is not an orchestrator, MCP server, agent graph, or fitness-\(F\) controller. Lintel (admit freeze, land / revert / reject, serving \(F\)) lives in a different repo.
 
 ## Git
 
