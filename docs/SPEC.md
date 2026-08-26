@@ -50,7 +50,7 @@ Forbidden (in this IR, forever):
 | **S** sync | Every cross-partition `Copy`/`Mma` has a dominating `Barrier`; no cyclic wait | `{node, partition?, msg}` |
 | **V** value-sim | Interpreter on a tiny concrete shape matches a reference `numpy` kernel | `{node, index?, expected, got}` |
 
-v1 implements W fully (including role/space: gmem→onchip wants `load`, onchip→gmem wants `store`, MMA/Reduce want `math`; `generic` is the escape), L for static shapes, S for barrier pairing (localized to arriving `partition` + `thread=0` first lane), V for `Copy`, `Mma`, and `Reduce` on CPU. SMT (Argus Z3) is v2: same finding schema, heavier solver.
+v1 implements W fully (including role/space: gmem→onchip wants `load`, onchip→gmem wants `store`, MMA/Reduce want `math`; `generic` is the escape), L for static shapes, S for barrier pairing (localized to arriving `partition` + `thread=0` first lane), V for `Copy`, `Mma`, and `Reduce` on CPU (`choreo check --tensors --expected` runs W→L→S then V). SMT (Argus Z3) is v2: same finding schema, heavier solver.
 
 These gates are **T2-color signals**, not serving oracles (T6). Passing V does not mean SGLang A/B.
 
@@ -84,7 +84,7 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
 }
 ```
 
-This is the only feedback surface intended for a future agent. `where` is the Lintel CFG-edge name (same value as `gate`). Not a control-plane API: it is compiler diagnostics. `compiler_ver` on the Kernel JSON is a pin for Lintel `%k`; it is not mutated inside one admit/lower walk.
+`compiler_ver` on the Kernel JSON is a pin for Lintel `%k`; it is not mutated inside one admit/lower walk. `materialize` writes `pin.json` (`Lowered.as_k()`): kernel, target, family, compiler_ver, source/artifact hashes, adapter_id, graph_hash=null. That is the **payload** Lintel freezes. This tree does not freeze, land, revert, or serve \(F\).
 
 Kernel JSON (construct / inspect / mutate) is defined by `choreoir.jsonio.kernel_to_dict`. Ops are tagged with `"op": "copy"|"mma"|"reduce"|"barrier"|"pipeline"|"yield"`.
 

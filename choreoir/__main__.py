@@ -18,8 +18,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    c = sub.add_parser("check", help="run W/L/S admit; exit 1 if any error")
+    c = sub.add_parser("check", help="run W/L/S admit (and V if --tensors/--expected); exit 1 if any error")
     c.add_argument("kernel", type=Path)
+    c.add_argument("--tensors", type=Path, default=None, help="with --expected, also run V-gate")
+    c.add_argument("--expected", type=Path, default=None)
 
     s = sub.add_parser("sim", help="CPU interpreter (V-gate if --expected is set)")
     s.add_argument("kernel", type=Path)
@@ -53,6 +55,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "check":
         findings = check(kernel)
+        if (
+            args.tensors is not None
+            and args.expected is not None
+            and not any(f.severity == "error" for f in findings)
+        ):
+            findings.extend(check_value(kernel, _read_json(args.tensors), _read_json(args.expected)))
         print(json.dumps([f.as_dict() for f in findings], indent=2))
         return 1 if any(f.severity == "error" for f in findings) else 0
 

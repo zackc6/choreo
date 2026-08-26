@@ -106,6 +106,7 @@ When changing this repo, ask:
 - [ ] Does this grow Choreo into L2/L3/L6/L7 (graph, MLIR, Inductor, cluster, Event Tensor)? If yes, stop — that is a Lintel tool or a *new* face, not this AST.
 - [ ] Are GPU and Ascend still separate spaces/roles (no unified `onchip`)?
 - [ ] Are findings still `{where, gate, node, ...}` with no scraped stdout as the agent API?
+- [ ] Does `materialize` write `pin.json` (`as_k`) for Lintel to freeze, without this tree freezing?
 
 ## Do not
 

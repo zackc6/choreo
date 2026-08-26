@@ -17,6 +17,17 @@ from .print_triton import print_triton
 from .toolchain import find_cann, find_nvcc, nvcc_include_dir
 
 
+def adapter_id(family: str, artifact_kind: str) -> str:
+    """Sink id Lintel freezes in %k. Not a second live face."""
+    if artifact_kind == "cubin":
+        return "nvcc.cubin"
+    if artifact_kind == "npu-bin":
+        return "tilelang.cann"
+    if family == "ascend":
+        return "tilelang.ascend"
+    return "cuda.cxx"
+
+
 @dataclass(frozen=True)
 class Lowered:
     text: str
@@ -31,12 +42,29 @@ class Lowered:
     compiler_ver: str = ""
     artifact_sha256: str = ""
     toolchain: str = ""
+    kernel_name: str = ""
 
     def errors(self) -> list[Finding]:
         return [f for f in self.findings if f.severity == "error"]
 
+    def as_k(self) -> dict:
+        """Payload Lintel freezes as %k. This tree does not freeze, land, or serve F."""
+        target = self.facts.target if self.facts else ""
+        return {
+            "kernel": self.kernel_name,
+            "target": target,
+            "family": self.family,
+            "compiler_ver": self.compiler_ver,
+            "source_sha256": self.source_sha256,
+            "artifact_sha256": self.artifact_sha256 or None,
+            "artifact_kind": self.artifact_kind,
+            "adapter_id": adapter_id(self.family, self.artifact_kind),
+            "graph_hash": None,
+        }
+
     def as_manifest(self) -> dict:
         return {
+            "kernel": self.kernel_name,
             "family": self.family,
             "artifact_kind": self.artifact_kind,
             "artifact_path": self.artifact_path,
@@ -44,6 +72,8 @@ class Lowered:
             "artifact_sha256": self.artifact_sha256,
             "compiler_ver": self.compiler_ver,
             "toolchain": self.toolchain,
+            "adapter_id": adapter_id(self.family, self.artifact_kind),
+            "k": self.as_k(),
             "facts": self.facts.as_dict() if self.facts else None,
             "findings": [f.as_dict() for f in self.findings],
         }
@@ -74,7 +104,14 @@ def lower(kernel: Kernel, *, sla: bool = True) -> Lowered:
             )
         )
     if any(f.severity == "error" for f in findings):
-        return Lowered("", None, tuple(findings), family or "", compiler_ver=kernel.compiler_ver)
+        return Lowered(
+            "",
+            None,
+            tuple(findings),
+            family or "",
+            compiler_ver=kernel.compiler_ver,
+            kernel_name=kernel.name,
+        )
     facts = facts_from_kernel(kernel)
     cuda_text = ""
     triton_text = ""
@@ -96,6 +133,7 @@ def lower(kernel: Kernel, *, sla: bool = True) -> Lowered:
         cuda_text,
         triton_text,
         kernel.compiler_ver,
+        kernel_name=kernel.name,
     )
 
 
@@ -185,8 +223,10 @@ def materialize(
         result.compiler_ver,
         artifact_sha256,
         toolchain,
+        kernel_name=result.kernel_name,
     )
     (out_dir / "manifest.json").write_text(json.dumps(out.as_manifest(), indent=2) + "\n")
+    (out_dir / "pin.json").write_text(json.dumps(out.as_k(), indent=2) + "\n")
     return out
 
 
@@ -204,6 +244,7 @@ def _with_findings(result: Lowered, findings: list[Finding]) -> Lowered:
         result.compiler_ver,
         result.artifact_sha256,
         result.toolchain,
+        kernel_name=result.kernel_name,
     )
 
 
@@ -318,4 +359,4 @@ def _try_npu_bin(src: Path, dest: Path, name: str) -> tuple[list[Finding], str |
 
 
 # find_nvcc re-exported for tests / CLI
-__all__ = ["Lowered", "find_nvcc", "lower", "materialize"]
+__all__ = ["Lowered", "adapter_id", "find_nvcc", "lower", "materialize"]

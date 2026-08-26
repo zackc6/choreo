@@ -185,7 +185,7 @@ def test_examples_lower_cuda():
         out = lower(k)
         assert out.errors() == [], out.findings
         assert out.family == "cuda"
-        assert out.compiler_ver == "0.1.2"
+        assert out.compiler_ver == "0.1.3"
         assert "__global__" in out.text
         assert out.triton_text and "@triton.jit" in out.triton_text
         assert out.cuda_text == out.text
@@ -234,6 +234,18 @@ def test_ascend_gmem_signature_and_store():
     assert "L0C->GM" in out.text
 
 
+def test_materialize_writes_pin_for_lintel_k(tmp_path):
+    k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
+    out = materialize(k, tmp_path, emit="source")
+    pin = json.loads((tmp_path / "pin.json").read_text())
+    assert pin["kernel"] == "gemm_tile"
+    assert pin["compiler_ver"] == "0.1.3"
+    assert pin["source_sha256"] == out.source_sha256
+    assert pin["adapter_id"] == "cuda.cxx"
+    assert pin["graph_hash"] is None
+    assert out.as_k() == pin
+
+
 def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
     k = kernel_from_dict(json.loads((ROOT / "examples" / "gemm.json").read_text()))
     out = materialize(k, tmp_path, emit="cubin")
@@ -246,7 +258,7 @@ def test_materialize_cubin_without_nvcc_writes_cu(tmp_path):
         assert out.artifact_kind == "source"
     assert (tmp_path / "manifest.json").is_file()
     man = json.loads((tmp_path / "manifest.json").read_text())
-    assert man["compiler_ver"] == "0.1.2"
+    assert man["compiler_ver"] == "0.1.3"
     assert out.source_sha256
 
 
@@ -279,3 +291,10 @@ def test_materialize_cubin_with_nvcc_is_elf(tmp_path):
     cout = materialize(ck, tmp_path / "copy", emit="cubin")
     assert cout.artifact_kind == "cubin", cout.findings
     assert Path(cout.artifact_path).read_bytes()[:4] == b"\x7fELF"
+    pin = json.loads((tmp_path / "pin.json").read_text())
+    assert pin["kernel"] == "gemm_tile"
+    assert pin["adapter_id"] == "nvcc.cubin"
+    assert pin["artifact_kind"] == "cubin"
+    assert pin["artifact_sha256"] == out.artifact_sha256
+    assert pin["graph_hash"] is None
+    assert pin["compiler_ver"] == "0.1.3"

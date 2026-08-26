@@ -12,6 +12,40 @@ def test_cli_check_copy_ok(capsys):
     assert out == []
 
 
+def test_cli_check_value_gate(capsys):
+    rc = main(
+        [
+            "check",
+            str(ROOT / "examples" / "gemm.json"),
+            "--tensors",
+            str(ROOT / "examples" / "gemm.tensors.json"),
+            "--expected",
+            str(ROOT / "examples" / "gemm.expected.json"),
+        ]
+    )
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out) == []
+
+
+def test_cli_check_value_mismatch_localizes(tmp_path, capsys):
+    bad = tmp_path / "want.json"
+    bad.write_text('{"Cg": [[0.0, 0.0], [0.0, 0.0]]}\n')
+    rc = main(
+        [
+            "check",
+            str(ROOT / "examples" / "gemm.json"),
+            "--tensors",
+            str(ROOT / "examples" / "gemm.tensors.json"),
+            "--expected",
+            str(bad),
+        ]
+    )
+    assert rc == 1
+    fs = json.loads(capsys.readouterr().out)
+    v = [f for f in fs if f["where"] == "V"]
+    assert v and v[0]["element"] == [0, 0]
+
+
 def test_cli_sim_gemm_expected(capsys):
     rc = main(
         [
@@ -65,3 +99,7 @@ def test_cli_lower_cubin_manifest(tmp_path, capsys):
         assert Path(man["artifact_path"]).read_bytes()[:4] == b"\x7fELF"
         assert man["artifact_sha256"]
         assert "nvcc" in man["toolchain"]
+        assert man["k"]["adapter_id"] == "nvcc.cubin"
+        assert (tmp_path / "pin.json").is_file()
+        pin = json.loads((tmp_path / "pin.json").read_text())
+        assert pin == man["k"]
