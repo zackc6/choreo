@@ -31,7 +31,7 @@ Match the survey’s predicted **direction** (Horizon A, soft merge M1, hybrid C
 | **T6** serving \(F\), not microbench | Lintel law; not evidence in this tree | Law, not yet numbers |
 | **T5** compiler evolves from recurring fails | Two clocks (below). Cake flavor, not TritorX ISA RFC | T5-lite |
 | **C3-B** constrain the action space | Two allowlisted kernels | Yes |
-| **C4** multi-DSL | One *face*; Triton-first *sink*; later `adapter_id` | Partial |
+| **C4** multi-DSL | One *face* (`choreo.v0`); per-target sinks in `%k.compiler_ver` | Partial |
 | **C5** freeze-before-serve | Specialize vs serve; no LLM on serve | Lintel |
 | Joint L1–L7 policy, L7 place, jobs (b)(c)(d) | Out | Intentional miss |
 
@@ -118,7 +118,7 @@ A compiler object here has to (1) take warp/core roles, barriers, pipeline depth
 
 `choreoir.lower` is admit-gated. `Kernel.target` is required (`cuda` / `cuda-sm*` / `ascend*`). Year-1 allowlist: `copy`, `gemm_tile`.
 
-**Stand-in (today, not the L5 design):** NVIDIA CUDA C++ walk is `lower().text` (cubin-bound); Triton knobs are the M2 sidecar. Ascend CCE walk is `lower().text` (NPU-bin-bound); TileLang-Ascend is the sidecar. Printers must consume `Partition`, `Barrier`, `Pipeline.depth`, layout, space, gmem writeback, and MMA (CUDA scalar MAC / CCE UB `vmadd` fallback; cube mad is later L5). `materialize(..., emit='cubin'|'npu-bin')` runs official `nvcc` / `ccec` when present and pins `artifact_sha256`; missing toolchain is a warning, not a fake binary. `pin.json` (`as_k`) is the `%k` **payload** Lintel freezes; this tree does not freeze.
+**Stand-in (today, not the L5 design):** NVIDIA CUDA C++ walk is `lower().text` (cubin-bound); Triton knobs are the M2 sidecar. Ascend CCE walk is `lower().text` (NPU-bin-bound); TileLang-Ascend is the sidecar. Printers must consume `Partition`, `Barrier`, `Pipeline.depth`, layout, space, gmem writeback, and MMA (CUDA scalar MAC / CCE UB `vmadd` fallback; cube mad is later L5). `materialize(..., emit='cubin'|'npu-bin')` runs official `nvcc` / `ccec` when present and pins `artifact_sha256`; missing toolchain is a warning, not a fake binary. `pin.json` (`as_k`) is the `%k` **payload**: a Lintel `cache-key.v0` (`graph_hash`, `hw_id`, `compiler_ver=choreoir==…;sink`, `adapter_id=choreo.v0`, `policy_id`) plus sink metadata. `Kernel.target` stays on the AST and as payload, **not** in the key. Default `graph_hash` is an unspecified digest, not a Kernel hash. This tree does not freeze.
 
 **Later design:** the actual cubin / NPU-bin path (how schedule becomes loadable GPU/NPU objects). Until that lands, M2 `@triton.v0` knobs are the GPU stand-in, not a secret second SKU.
 
@@ -159,7 +159,7 @@ SLA allowlists two complete kernels. Payload is a program (kind 1); the *deal* i
 
 ## Non-goals (this tree)
 
-- Control plane: MCP, budget/stop, serving \(F\), agent DAGs, Lintel IR, `%k` / `%w`.
+- Control plane: MCP, budget/stop, serving \(F\), agent DAGs, Lintel IR, freeze / land / revert. This tree **emits** a `cache-key.v0` payload (`pin.json`); it does not freeze it.
 - Joint search over L2/L3/L6/L7. Year-1 does not propose fusion or place. Later, Lintel may *talk to* those bands; Choreo still does not *become* them.
 - A new execution ISA. Do not replace `opt` / Inductor / Triton / CANN as the device compiler. Do not design L5 in lieu of the later cubin/NPU path.
 - SMT layout (Argus `oracle`) as a year-1 compiler.

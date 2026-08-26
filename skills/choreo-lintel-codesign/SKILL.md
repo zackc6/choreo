@@ -79,6 +79,8 @@ Do not unify NVIDIA smem and Ascend L1 into one `onchip` enum. Do not add a seco
 
 `print_triton` without `lower()` is a helper; CLI `print` goes through `lower()`. The demo that fails the product test is still “we compiled Choreo.”
 
+`pin.json` is the Lintel handshake, not a freeze. `cache_key` matches `cache-key.v0`: face `adapter_id` is `choreo.v0`; `sink_id` (`nvcc.cubin` / `ccec.aicore` / …) is payload and the suffix of `compiler_ver`; `Kernel.target` is not a key field; default `graph_hash` is `sha256(lintel.graph.unspecified)` so Lintel can overwrite the L2 digest. `choreo pin path/to/pin.json` validates the key. Do not put freeze / land / revert / serving \(F\) / MCP in `choreoir`. The Lintel repo is the control-plane tree (docs + schemas in year-1); this agent does not land commits there.
+
 ## Dual target (GPU and Ascend)
 
 Two SKUs, two sinks, **one** Finding schema. Not one averaged dialect. Lowering to **both** is required of this tree.
@@ -107,7 +109,7 @@ When changing this repo, ask:
 - [ ] Does this grow Choreo into L2/L3/L6/L7 (graph, MLIR, Inductor, cluster, Event Tensor)? If yes, stop — that is a Lintel tool or a *new* face, not this AST.
 - [ ] Are GPU and Ascend still separate spaces/roles (no unified `onchip`)?
 - [ ] Are findings still `{where, gate, node, ...}` with no scraped stdout as the agent API?
-- [ ] Does `materialize` write `pin.json` (`as_k`) for Lintel to freeze, without this tree freezing?
+- [ ] Does `materialize` write `pin.json` (`as_k`) whose `cache_key` is Lintel `cache-key.v0` (`adapter_id=choreo.v0`, no `Kernel.target` in the key, `compiler_ver` names choreoir **and** the sink, `graph_hash` is not a Kernel hash), without this tree freezing?
 
 ## Do not
 

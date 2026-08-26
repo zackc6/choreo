@@ -9,6 +9,7 @@ from .check import check
 from .interp import check_value, simulate
 from .jsonio import kernel_from_dict, kernel_to_dict
 from .lower import lower, materialize
+from .pin import cache_key_errors, extract_cache_key
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -46,11 +47,39 @@ def main(argv: list[str] | None = None) -> int:
         default="source",
         help="source=CUDA C++ or CCE (+ Triton/TileLang sidecars); cubin=nvcc; npu-bin=ccec",
     )
+    lo.add_argument(
+        "--graph-hash",
+        default=None,
+        help="Lintel graph_hash (sha256:<64 hex>). Default: unspecified digest, not a Kernel hash.",
+    )
+    lo.add_argument(
+        "--hw-id",
+        default=None,
+        help="Lintel hw_id stamp (not Kernel.target). Default: nvidia.sm_* / ascend.davinci from arch.",
+    )
+    lo.add_argument(
+        "--policy-id",
+        default=None,
+        help="Lintel policy_id stamp. Default: lintel.specialize.v0",
+    )
+
+    pinp = sub.add_parser("pin", help="validate pin.json cache_key.v0 (Lintel handshake)")
+    pinp.add_argument("pin", type=Path)
 
     d = sub.add_parser("dump", help="round-trip kernel JSON to stdout")
     d.add_argument("kernel", type=Path)
 
     args = p.parse_args(argv)
+    if args.cmd == "pin":
+        doc = _read_json(args.pin)
+        key = extract_cache_key(doc)
+        if key is None:
+            print(json.dumps(["no cache_key.v0 object in file"], indent=2))
+            return 1
+        errs = cache_key_errors(key)
+        print(json.dumps(errs, indent=2))
+        return 1 if errs else 0
+
     kernel = kernel_from_dict(_read_json(args.kernel))
 
     if args.cmd == "check":
@@ -87,7 +116,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "lower":
         if args.target:
             kernel.target = args.target
-        result = materialize(kernel, args.out, emit=args.emit)
+        result = materialize(
+            kernel,
+            args.out,
+            emit=args.emit,
+            graph_hash=args.graph_hash,
+            hw_id=args.hw_id,
+            policy_id=args.policy_id,
+        )
         print(json.dumps(result.as_manifest(), indent=2))
         return 1 if result.errors() else 0
 

@@ -66,7 +66,7 @@ This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kern
 | Ascend NPU (sidecar) | `ascend*` | TileLang (`print_ascend`) | GM args + spaces → GM/L1/L0C/UB, `T.copy` / `T.gemm` / `T.pipe_barrier` / `T.Pipelined`. Not the NPU-bin path. |
 | Ascend NPU (NPU-bin-bound stand-in) | `ascend*` | CCE (`print_ascendc`); `ccec` when present | gmem → `__gm__`, Copy → `copy_gm_to_ubuf` / `copy_ubuf_to_gm` (burst from layout), Barrier → `pipe_barrier`, Pipeline → staged loop, Mma → `cube.mmad` name + M/N/K loops + UB `vmadd` fallback. `lower().text` is this source. UB stand-in for onchip (like CUDA `float` for dtypes). Not the designed NPU ISA. |
 
-`materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes the cubin/NPU-bin-bound stand-in (`.cu` / `.cce`) plus the Triton / TileLang sidecars, and tries official `nvcc` / `ccec` when present. Success writes a real ELF cubin or elf64-hiipu NPU object and pins `artifact_sha256` next to `source_sha256` / `compiler_ver` for Lintel `%k`. Missing toolchain is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile` — both write results back to gmem (load / math / store partitions). Do not glue NVIDIA and Ascend spaces into one enum. Do not treat homemade PTX/Davinci as the L5 design.
+`materialize(kernel, out_dir, emit='cubin'|'npu-bin')` writes the cubin/NPU-bin-bound stand-in (`.cu` / `.cce`) plus the Triton / TileLang sidecars, and tries official `nvcc` / `ccec` when present. Success writes a real ELF cubin or elf64-hiipu NPU object and pins `artifact_sha256` next to `source_sha256` in `pin.json` (`cache-key.v0` + sink payload) for Lintel `%k`. Missing toolchain is a warning finding, not a fake binary. Year-1 SLA names: `copy`, `gemm_tile` — both write results back to gmem (load / math / store partitions). Do not glue NVIDIA and Ascend spaces into one enum. Do not treat homemade PTX/Davinci as the L5 design.
 
 Choreo **storage layout** is an explicit contract for admit and for the sinks (cheap `shape × stride`). Work partitioning lives in `Partition` + `Layout`.
 
@@ -85,7 +85,32 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
 }
 ```
 
-`compiler_ver` on the Kernel JSON is a pin for Lintel `%k`; it is not mutated inside one admit/lower walk. `materialize` writes `pin.json` (`Lowered.as_k()`): kernel, target, family, compiler_ver, source/artifact hashes, adapter_id, isa, arch, graph_hash=null. That is the **payload** Lintel freezes. This tree does not freeze, land, revert, or serve \(F\).
+`compiler_ver` on the Kernel JSON is the **choreoir** pin; it is not mutated inside one admit/lower walk. Lintel `%k` (`cache-key.v0`) names **both** that pin and the sink: `choreoir==0.1.6;nvcc.cubin`. `materialize` writes `pin.json` (`Lowered.as_k()`):
+
+```json
+{
+  "schema_version": "choreo-pin.v1",
+  "cache_key": {
+    "schema_version": "cache-key.v0",
+    "graph_hash": "sha256:…",
+    "hw_id": "nvidia.sm_80",
+    "compiler_ver": "choreoir==0.1.6;nvcc.cubin",
+    "adapter_id": "choreo.v0",
+    "policy_id": "lintel.specialize.v0"
+  },
+  "kernel": "gemm_tile",
+  "family": "cuda",
+  "isa": "mma.sync",
+  "arch": "sm_80",
+  "target": "cuda",
+  "sink_id": "nvcc.cubin",
+  "artifact_kind": "cubin",
+  "artifact_sha256": "…",
+  "source_sha256": "…"
+}
+```
+
+`cache_key` is the freeze key (additionalProperties false). **Not in the key:** `model_id`, `enum_id`, `Kernel.target`. Year-1 has no L2 graph: default `graph_hash` is `sha256(lintel.graph.unspecified)`, not a hash of the Kernel JSON; Lintel overwrites it at freeze (`--graph-hash` / `attrs.graph_hash`). `hw_id` is derived from family/arch (`nvidia.sm_*` / `ascend.davinci`) or stamped (`--hw-id`); admission is that id, not `target`. `adapter_id` is the L4 **face** (`choreo.v0`). `sink_id` is the device compiler (`nvcc.cubin` / `ccec.aicore` / `cuda.cxx` / `ascendc.cce`) and is also the suffix of `cache_key.compiler_ver`. That is the **payload** Lintel freezes. This tree does not freeze, land, revert, or serve \(F\). Handshake schema: [`schemas/cache-key.v0.schema.json`](../schemas/cache-key.v0.schema.json) (Lintel is source of truth).
 
 Kernel JSON (construct / inspect / mutate) is defined by `choreoir.jsonio.kernel_to_dict`. Ops are tagged with `"op": "copy"|"mma"|"reduce"|"barrier"|"pipeline"|"yield"`.
 

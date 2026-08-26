@@ -86,6 +86,7 @@ python3 -m choreoir print examples/gemm.json
 python3 -m choreoir print examples/gemm.json --target ascend-a2
 python3 -m choreoir lower examples/gemm.json -o /tmp/choreo-out --emit cubin
 python3 -m choreoir lower examples/gemm.json -o /tmp/choreo-npu --target ascend-a2 --emit npu-bin
+python3 -m choreoir pin /tmp/choreo-out/pin.json
 ```
 
 Or from Python:
@@ -137,5 +138,6 @@ tests/        wellformed / layout / sync / sim / printer / CLI
 docs/SPEC.md  grammar and admit rules
 goals/        co-design goals (Lintel control plane / Choreo data plane)
 skills/       implementer SOP for that cut
+schemas/      Lintel cache-key.v0 handshake copy (Lintel is source of truth)
 AGENTS.md     which skill to read before editing
 ```

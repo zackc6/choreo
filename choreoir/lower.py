@@ -5,30 +5,28 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .ast import Kernel
 from .check import Finding, check
-from .knobs import YEAR1_KERNELS, ScheduleFacts, facts_from_kernel, ident, target_family
+from .knobs import YEAR1_KERNELS, ScheduleFacts, facts_from_kernel, ident, nv_arch, target_family
+from .pin import (
+    PIN_SCHEMA,
+    adapter_id,
+    apply_pin_stamps,
+    cache_key,
+    graph_hash_of,
+    hw_id_of,
+    k_compiler_ver,
+    policy_id_of,
+    sink_id,
+)
 from .print_ascend import print_ascend
 from .print_ascendc import print_ascendc
 from .print_cuda import print_cuda
 from .print_triton import print_triton
 from .toolchain import ccec_env, find_ccec, find_nvcc, nvcc_include_dir
-
-
-def adapter_id(family: str, artifact_kind: str, toolchain: str = "") -> str:
-    """Sink id Lintel freezes in %k. Not a second live face."""
-    if artifact_kind == "cubin":
-        return "nvcc.cubin"
-    if artifact_kind == "npu-bin":
-        if "tilelang" in toolchain and "ccec" not in toolchain:
-            return "tilelang.cann"
-        return "ccec.aicore"
-    if family == "ascend":
-        return "ascendc.cce"
-    return "cuda.cxx"
 
 
 @dataclass(frozen=True)
@@ -47,25 +45,37 @@ class Lowered:
     toolchain: str = ""
     kernel_name: str = ""
     tilelang_text: str = ""
+    graph_hash: str = ""
+    hw_id: str = ""
+    policy_id: str = ""
 
     def errors(self) -> list[Finding]:
         return [f for f in self.findings if f.severity == "error"]
 
+    def _sink(self) -> str:
+        return sink_id(self.family, self.artifact_kind, self.toolchain)
+
     def as_k(self) -> dict:
-        """Payload Lintel freezes as %k. This tree does not freeze, land, or serve F."""
+        """Payload Lintel freezes. cache_key is cache-key.v0; this tree does not freeze, land, or serve F."""
+        sink = self._sink()
         target = self.facts.target if self.facts else ""
         return {
+            "schema_version": PIN_SCHEMA,
+            "cache_key": cache_key(
+                graph_hash=self.graph_hash,
+                hw_id=self.hw_id,
+                compiler_ver=k_compiler_ver(self.compiler_ver, sink),
+                policy_id=self.policy_id,
+            ),
             "kernel": self.kernel_name,
-            "target": target,
             "family": self.family,
-            "compiler_ver": self.compiler_ver,
-            "source_sha256": self.source_sha256,
-            "artifact_sha256": self.artifact_sha256 or None,
-            "artifact_kind": self.artifact_kind,
-            "adapter_id": adapter_id(self.family, self.artifact_kind, self.toolchain),
             "isa": self.facts.isa if self.facts else None,
             "arch": self.facts.arch if self.facts else None,
-            "graph_hash": None,
+            "target": target,
+            "sink_id": sink,
+            "artifact_kind": self.artifact_kind,
+            "artifact_sha256": self.artifact_sha256 or None,
+            "source_sha256": self.source_sha256,
         }
 
     def as_manifest(self) -> dict:
@@ -78,11 +88,24 @@ class Lowered:
             "artifact_sha256": self.artifact_sha256,
             "compiler_ver": self.compiler_ver,
             "toolchain": self.toolchain,
-            "adapter_id": adapter_id(self.family, self.artifact_kind, self.toolchain),
+            "sink_id": self._sink(),
             "k": self.as_k(),
             "facts": self.facts.as_dict() if self.facts else None,
             "findings": [f.as_dict() for f in self.findings],
         }
+
+
+def _pin_fields(kernel: Kernel, family: str) -> dict[str, str]:
+    arch = ""
+    if family == "ascend":
+        arch = "davinci"
+    elif family == "cuda":
+        arch = nv_arch(kernel.target)
+    return {
+        "graph_hash": graph_hash_of(kernel),
+        "hw_id": hw_id_of(kernel, family, arch),
+        "policy_id": policy_id_of(kernel),
+    }
 
 
 def lower(kernel: Kernel, *, sla: bool = True) -> Lowered:
@@ -110,6 +133,7 @@ def lower(kernel: Kernel, *, sla: bool = True) -> Lowered:
                 f"year-1 SLA allowlists only {{{names}}}; got {kernel.name!r}",
             )
         )
+    pin = _pin_fields(kernel, family or "")
     if any(f.severity == "error" for f in findings):
         return Lowered(
             "",
@@ -118,6 +142,7 @@ def lower(kernel: Kernel, *, sla: bool = True) -> Lowered:
             family or "",
             compiler_ver=kernel.compiler_ver,
             kernel_name=kernel.name,
+            **pin,
         )
     facts = facts_from_kernel(kernel)
     cuda_text = ""
@@ -144,6 +169,7 @@ def lower(kernel: Kernel, *, sla: bool = True) -> Lowered:
         kernel.compiler_ver,
         kernel_name=kernel.name,
         tilelang_text=tilelang_text,
+        **pin,
     )
 
 
@@ -153,13 +179,23 @@ def materialize(
     *,
     emit: str = "source",
     sla: bool = True,
+    graph_hash: str | None = None,
+    hw_id: str | None = None,
+    policy_id: str | None = None,
 ) -> Lowered:
     """Write sink source and, if emit is cubin/npu-bin, try the device toolchain.
 
     Missing nvcc / ccec is a *warning* finding, not a silent success.
     Lintel freeze/%k can pin source_sha256 even when the bin is absent.
+    graph_hash / hw_id / policy_id are Lintel-owned stamps (not Kernel.target).
     """
+    stamp_warns = apply_pin_stamps(
+        kernel, graph_hash=graph_hash, hw_id=hw_id, policy_id=policy_id
+    )
     result = lower(kernel, sla=sla)
+    if stamp_warns:
+        extra = tuple(Finding("W", "warning", "kernel", msg) for msg in stamp_warns)
+        result = replace(result, findings=result.findings + extra)
     if result.errors():
         return result
     out_dir = Path(out_dir)
@@ -185,7 +221,7 @@ def materialize(
             findings.append(
                 Finding("W", "error", "kernel", f"emit=cubin requires cuda* target, got {kernel.target!r}")
             )
-            return _with_findings(result, findings)
+            return replace(result, findings=tuple(findings))
         cubin = out_dir / f"{name}.cubin"
         cu = out_dir / f"{name}.cu"
         extra, ok, nvcc_path = _try_nvcc(
@@ -209,7 +245,7 @@ def materialize(
                     f"emit=npu-bin requires ascend* target, got {kernel.target!r}",
                 )
             )
-            return _with_findings(result, findings)
+            return replace(result, findings=tuple(findings))
         dest = out_dir / f"{name}.npu.bin"
         extra, ok, ccec_path = _try_ccec(src_path, dest)
         findings.extend(extra)
@@ -223,44 +259,17 @@ def materialize(
     else:
         artifact_path = str(src_path)
 
-    out = Lowered(
-        result.text,
-        result.facts,
-        tuple(findings),
-        result.family,
-        artifact_kind,
-        artifact_path,
-        result.source_sha256,
-        result.cuda_text,
-        result.triton_text,
-        result.compiler_ver,
-        artifact_sha256,
-        toolchain,
-        result.kernel_name,
-        result.tilelang_text,
+    out = replace(
+        result,
+        findings=tuple(findings),
+        artifact_kind=artifact_kind,
+        artifact_path=artifact_path,
+        artifact_sha256=artifact_sha256,
+        toolchain=toolchain,
     )
     (out_dir / "manifest.json").write_text(json.dumps(out.as_manifest(), indent=2) + "\n")
     (out_dir / "pin.json").write_text(json.dumps(out.as_k(), indent=2) + "\n")
     return out
-
-
-def _with_findings(result: Lowered, findings: list[Finding]) -> Lowered:
-    return Lowered(
-        result.text,
-        result.facts,
-        tuple(findings),
-        result.family,
-        result.artifact_kind,
-        result.artifact_path,
-        result.source_sha256,
-        result.cuda_text,
-        result.triton_text,
-        result.compiler_ver,
-        result.artifact_sha256,
-        result.toolchain,
-        result.kernel_name,
-        result.tilelang_text,
-    )
 
 
 def _sha256_file(path: Path) -> str:
@@ -354,4 +363,12 @@ def _try_ccec(src: Path, dest: Path) -> tuple[list[Finding], bool, str]:
 
 
 # find_nvcc re-exported for tests / CLI
-__all__ = ["Lowered", "adapter_id", "find_ccec", "find_nvcc", "lower", "materialize"]
+__all__ = [
+    "Lowered",
+    "adapter_id",
+    "find_ccec",
+    "find_nvcc",
+    "lower",
+    "materialize",
+    "sink_id",
+]

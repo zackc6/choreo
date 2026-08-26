@@ -102,7 +102,8 @@ def test_cli_lower_cubin_manifest(tmp_path, capsys):
         assert Path(man["artifact_path"]).read_bytes()[:4] == b"\x7fELF"
         assert man["artifact_sha256"]
         assert "nvcc" in man["toolchain"]
-        assert man["k"]["adapter_id"] == "nvcc.cubin"
+        assert man["k"]["sink_id"] == "nvcc.cubin"
+        assert man["k"]["cache_key"]["adapter_id"] == "choreo.v0"
         assert (tmp_path / "pin.json").is_file()
         pin = json.loads((tmp_path / "pin.json").read_text())
         assert pin == man["k"]
@@ -131,6 +132,7 @@ def test_cli_lower_npu_bin_manifest(tmp_path, capsys):
         assert Path(man["artifact_path"]).read_bytes()[:4] == b"\x7fELF"
         assert man["artifact_sha256"]
         assert "ccec" in man["toolchain"]
-        assert man["k"]["adapter_id"] == "ccec.aicore"
+        assert man["k"]["sink_id"] == "ccec.aicore"
+        assert man["k"]["cache_key"]["adapter_id"] == "choreo.v0"
         pin = json.loads((tmp_path / "pin.json").read_text())
         assert pin == man["k"]
