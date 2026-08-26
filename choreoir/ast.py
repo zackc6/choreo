@@ -21,6 +21,10 @@ class Layout:
             n *= s
         return n
 
+    def span(self) -> int:
+        """Minimum storage elements implied by the last touched coordinate."""
+        return 1 + sum((d - 1) * s for d, s in zip(self.shape, self.stride, strict=True))
+
 
 @dataclass(frozen=True)
 class Param:
@@ -62,6 +66,15 @@ class Mma:
 
 
 @dataclass(frozen=True)
+class Reduce:
+    id: str
+    src: str
+    dst: str
+    axis: int
+    partition: str
+
+
+@dataclass(frozen=True)
 class Barrier:
     id: str
     wait_for: tuple[str, ...]  # partition names that must complete
@@ -75,7 +88,13 @@ class Pipeline:
     body: tuple[object, ...]
 
 
-Op = Copy | Mma | Barrier | Pipeline
+@dataclass(frozen=True)
+class Yield:
+    id: str
+    values: tuple[str, ...]
+
+
+Op = Copy | Mma | Reduce | Barrier | Pipeline | Yield
 
 
 @dataclass
@@ -92,3 +111,13 @@ class Kernel:
 
     def partition(self, name: str) -> Partition | None:
         return next((p for p in self.partitions if p.name == name), None)
+
+
+def flatten_ops(ops: tuple[object, ...] | list[object]) -> list[object]:
+    """Straight-line view: Pipeline regions are inlined for admit/interp."""
+    out: list[object] = []
+    for op in ops:
+        out.append(op)
+        if isinstance(op, Pipeline):
+            out.extend(flatten_ops(op.body))
+    return out

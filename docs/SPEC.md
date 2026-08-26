@@ -48,7 +48,7 @@ Forbidden (in this IR, forever):
 | **S** sync | Every cross-partition `Copy`/`Mma` has a dominating `Barrier`; no cyclic wait | `{node, partition?, msg}` |
 | **V** value-sim | Interpreter on a tiny concrete shape matches a reference `numpy` kernel | `{node, index?, expected, got}` |
 
-v1 implements W fully, L for static shapes, S for barrier pairing, V for `Copy` and a naive `Mma` on CPU. SMT (Argus Z3) is v2: same finding schema, heavier solver.
+v1 implements W fully, L for static shapes, S for barrier pairing, V for `Copy`, `Mma`, and `Reduce` on CPU. SMT (Argus Z3) is v2: same finding schema, heavier solver.
 
 These gates are **T2-color signals**, not serving oracles (T6). Passing V does not mean SGLang A/B.
 
@@ -77,6 +77,8 @@ Choreo **storage layout** is an explicit contract consumed by the printer (TIRx-
 ```
 
 This is the only feedback surface intended for a future agent. Not a control-plane API: it is compiler diagnostics.
+
+Kernel JSON (construct / inspect / mutate) is defined by `choreoir.jsonio.kernel_to_dict`. Ops are tagged with `"op": "copy"|"mma"|"reduce"|"barrier"|"pipeline"|"yield"`.
 
 ## 7. Out of spec
 

@@ -1,4 +1,4 @@
-from choreoir.ast import Barrier, Buffer, Copy, Kernel, Layout, Mma, Param, Partition
+from choreoir.ast import Barrier, Buffer, Copy, Kernel, Layout, Mma, Param, Partition, Reduce, Yield
 from choreoir.check import check
 
 
@@ -91,3 +91,62 @@ def test_mma_shapes():
         body=(Mma("m0", "A", "B", "C", "math"),),
     )
     assert not any(f.gate == "L" for f in check(k))
+    assert check(k) == []
+
+
+def test_unused_buffer_is_wellformed_error():
+    a, s = _bufs()
+    extra = Buffer("U", "regs", Layout((8, 8), (8, 1)), "f16")
+    k = Kernel(
+        "unused",
+        buffers=(a, s, extra),
+        partitions=(Partition("load", "load", 4),),
+        body=(Copy("c0", "A", "S", "load"),),
+    )
+    fs = check(k)
+    assert any(f.gate == "W" and "never used" in f.msg and f.node == "buffer.U" for f in fs)
+
+
+def test_duplicate_op_id():
+    a, s = _bufs()
+    k = Kernel(
+        "dup",
+        buffers=(a, s),
+        partitions=(Partition("load", "load", 4),),
+        body=(Copy("c0", "A", "S", "load"), Copy("c0", "S", "A", "load")),
+    )
+    fs = check(k)
+    assert any("duplicate op id" in f.msg for f in fs)
+
+
+def test_reduce_layout_and_unused_axis():
+    src = Buffer("X", "regs", Layout((4, 2), (2, 1)), "f32")
+    dst = Buffer("Y", "regs", Layout((4,), (1,)), "f32")
+    k = Kernel(
+        "red",
+        buffers=(src, dst),
+        partitions=(Partition("math", "math", 1),),
+        body=(Reduce("r0", "X", "Y", 1, "math"), Yield("y0", ("Y",))),
+    )
+    assert check(k) == []
+
+    bad = Kernel(
+        "red_bad",
+        buffers=(src, Buffer("Z", "regs", Layout((2,), (1,)), "f32")),
+        partitions=(Partition("math", "math", 1),),
+        body=(Reduce("r0", "X", "Z", 1, "math"),),
+    )
+    fs = check(bad)
+    assert any(f.gate == "L" and "dst shape" in f.msg for f in fs)
+
+
+def test_finding_schema_keys():
+    a, s = _bufs()
+    k = Kernel(
+        "bad",
+        buffers=(a, s),
+        partitions=(Partition("load", "load", 4),),
+        body=(Copy("c0", "A", "missing", "load"),),
+    )
+    d = check(k)[0].as_dict()
+    assert set(d) == {"gate", "severity", "node", "partition", "thread", "element", "msg"}

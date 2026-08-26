@@ -1,0 +1,51 @@
+{
+  "name": "gemm_tile",
+  "params": [
+    {"name": "Ag", "dtype": "f16", "shape": [2, 2]},
+    {"name": "Bg", "dtype": "f16", "shape": [2, 2]}
+  ],
+  "buffers": [
+    {
+      "name": "Ag",
+      "space": "gmem",
+      "dtype": "f16",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
+    },
+    {
+      "name": "Bg",
+      "space": "gmem",
+      "dtype": "f16",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
+    },
+    {
+      "name": "As",
+      "space": "smem",
+      "dtype": "f16",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
+    },
+    {
+      "name": "Bs",
+      "space": "smem",
+      "dtype": "f16",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
+    },
+    {
+      "name": "C",
+      "space": "regs",
+      "dtype": "f32",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
+    }
+  ],
+  "partitions": [
+    {"name": "load", "role": "load", "width": 4},
+    {"name": "math", "role": "math", "width": 4}
+  ],
+  "body": [
+    {"op": "copy", "id": "cA", "src": "Ag", "dst": "As", "partition": "load"},
+    {"op": "copy", "id": "cB", "src": "Bg", "dst": "Bs", "partition": "load"},
+    {"op": "barrier", "id": "b0", "wait_for": ["load"], "arrive": "math"},
+    {"op": "mma", "id": "m0", "a": "As", "b": "Bs", "c": "C", "partition": "math"},
+    {"op": "yield", "id": "y0", "values": ["C"]}
+  ],
+  "attrs": {"tile": "2x2"}
+}

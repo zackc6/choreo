@@ -2,7 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .ast import Barrier, Copy, Kernel, Layout, Mma, Pipeline
+from .ast import (
+    Barrier,
+    Copy,
+    Kernel,
+    Layout,
+    Mma,
+    Pipeline,
+    Reduce,
+    Yield,
+    flatten_ops,
+)
 
 
 @dataclass(frozen=True)
@@ -28,7 +38,7 @@ class Finding:
 
 
 def check(kernel: Kernel) -> list[Finding]:
-    """Admit W → L → S. Value-sim (V) is opt-in via interp.simulate_*."""
+    """Admit W → L → S. Value-sim (V) is opt-in via interp.simulate / interp.check_value."""
     out: list[Finding] = []
     out.extend(_wellformed(kernel))
     if any(f.severity == "error" and f.gate == "W" for f in out):
@@ -53,29 +63,73 @@ def _wellformed(k: Kernel) -> list[Finding]:
             f.append(
                 Finding("W", "error", f"partition.{p.name}", "width must be >= 1", partition=p.name)
             )
-    for i, op in enumerate(k.body):
+
+    used_bufs: set[str] = set()
+    used_parts: set[str] = set()
+    seen_ids: set[str] = set()
+
+    for i, op in enumerate(flatten_ops(k.body)):
         node = getattr(op, "id", f"op.{i}")
-        if isinstance(op, (Copy, Mma)):
+        if isinstance(node, str) and node in seen_ids:
+            f.append(Finding("W", "error", node, "duplicate op id"))
+        if isinstance(node, str):
+            seen_ids.add(node)
+
+        if isinstance(op, (Copy, Mma, Reduce)):
             if k.partition(op.partition) is None:
                 f.append(
-                    Finding("W", "error", node, f"unknown partition {op.partition!r}", partition=op.partition)
+                    Finding(
+                        "W",
+                        "error",
+                        node,
+                        f"unknown partition {op.partition!r}",
+                        partition=op.partition,
+                    )
                 )
+            else:
+                used_parts.add(op.partition)
+
         if isinstance(op, Copy):
             for buf in (op.src, op.dst):
+                used_bufs.add(buf)
                 if k.buffer(buf) is None:
                     f.append(Finding("W", "error", node, f"unknown buffer {buf!r}"))
-        if isinstance(op, Mma):
+        elif isinstance(op, Mma):
             for buf in (op.a, op.b, op.c):
+                used_bufs.add(buf)
                 if k.buffer(buf) is None:
                     f.append(Finding("W", "error", node, f"unknown buffer {buf!r}"))
-        if isinstance(op, Barrier):
+        elif isinstance(op, Reduce):
+            for buf in (op.src, op.dst):
+                used_bufs.add(buf)
+                if k.buffer(buf) is None:
+                    f.append(Finding("W", "error", node, f"unknown buffer {buf!r}"))
+        elif isinstance(op, Barrier):
             if k.partition(op.arrive) is None:
                 f.append(Finding("W", "error", node, f"unknown arrive partition {op.arrive!r}"))
+            else:
+                used_parts.add(op.arrive)
             for w in op.wait_for:
                 if k.partition(w) is None:
                     f.append(Finding("W", "error", node, f"unknown wait_for partition {w!r}"))
-        if isinstance(op, Pipeline) and op.depth < 1:
+                else:
+                    used_parts.add(w)
+        elif isinstance(op, Pipeline) and op.depth < 1:
             f.append(Finding("W", "error", node, "pipeline depth must be >= 1"))
+        elif isinstance(op, Yield):
+            for buf in op.values:
+                used_bufs.add(buf)
+                if k.buffer(buf) is None:
+                    f.append(Finding("W", "error", node, f"unknown buffer {buf!r}"))
+
+    for b in k.buffers:
+        if b.name not in used_bufs:
+            f.append(Finding("W", "error", f"buffer.{b.name}", "buffer never used"))
+    for p in k.partitions:
+        if p.name not in used_parts:
+            f.append(
+                Finding("W", "error", f"partition.{p.name}", "partition never used", partition=p.name)
+            )
     return f
 
 
@@ -84,8 +138,7 @@ def _layout_ok(layout: Layout) -> str | None:
         return "shape/stride rank mismatch"
     if any(d < 1 for d in layout.shape) or any(s < 1 for s in layout.stride):
         return "shape/stride must be positive"
-    span = 1 + sum((d - 1) * s for d, s in zip(layout.shape, layout.stride, strict=True))
-    if span < layout.numel():
+    if layout.span() < layout.numel():
         return "stride does not cover shape"
     return None
 
@@ -95,8 +148,16 @@ def _layout(k: Kernel) -> list[Finding]:
     for b in k.buffers:
         err = _layout_ok(b.layout)
         if err:
-            f.append(Finding("L", "error", f"buffer.{b.name}", err, element=(0,) * len(b.layout.shape)))
-    for op in k.body:
+            f.append(
+                Finding(
+                    "L",
+                    "error",
+                    f"buffer.{b.name}",
+                    err,
+                    element=(0,) * len(b.layout.shape),
+                )
+            )
+    for op in flatten_ops(k.body):
         if isinstance(op, Copy):
             src, dst = k.buffer(op.src), k.buffer(op.dst)
             if src and dst and src.layout.shape != dst.layout.shape:
@@ -110,7 +171,7 @@ def _layout(k: Kernel) -> list[Finding]:
                 )
             if src and dst and src.dtype != dst.dtype:
                 f.append(Finding("L", "error", op.id, f"copy dtype {src.dtype} -> {dst.dtype}"))
-        if isinstance(op, Mma):
+        elif isinstance(op, Mma):
             a, b, c = k.buffer(op.a), k.buffer(op.b), k.buffer(op.c)
             if a and b and c:
                 if len(a.layout.shape) != 2 or len(b.layout.shape) != 2 or len(c.layout.shape) != 2:
@@ -127,6 +188,31 @@ def _layout(k: Kernel) -> list[Finding]:
                             "mma shape mismatch (A MxK, B KxN, C MxN)",
                         )
                     )
+        elif isinstance(op, Reduce):
+            src, dst = k.buffer(op.src), k.buffer(op.dst)
+            if src and dst:
+                if op.axis < 0 or op.axis >= len(src.layout.shape):
+                    f.append(
+                        Finding(
+                            "L",
+                            "error",
+                            op.id,
+                            f"reduce axis {op.axis} out of rank {len(src.layout.shape)}",
+                            element=(op.axis,),
+                        )
+                    )
+                else:
+                    expected = tuple(d for i, d in enumerate(src.layout.shape) if i != op.axis)
+                    if dst.layout.shape != expected:
+                        f.append(
+                            Finding(
+                                "L",
+                                "error",
+                                op.id,
+                                f"reduce dst shape {dst.layout.shape} != {expected}",
+                                element=(0,) * len(dst.layout.shape),
+                            )
+                        )
     return f
 
 
@@ -136,37 +222,33 @@ def _sync(k: Kernel) -> list[Finding]:
     producers: dict[str, str] = {}  # buffer -> last writer partition
     satisfied: set[tuple[str, str]] = set()  # (writer_part, arriver)
 
-    def note_write(buf: str, part: str, node: str) -> None:
+    def note_write(buf: str, part: str) -> None:
         producers[buf] = part
 
-    for op in k.body:
-        if isinstance(op, Copy):
-            src_part = producers.get(op.src)
-            if src_part and src_part != op.partition and (src_part, op.partition) not in satisfied:
-                f.append(
-                    Finding(
-                        "S",
-                        "error",
-                        op.id,
-                        f"copy reads {op.src} from partition {src_part} without barrier",
-                        partition=op.partition,
-                    )
+    def require_visible(buf: str, part: str, node: str, kind: str) -> None:
+        src_part = producers.get(buf)
+        if src_part and src_part != part and (src_part, part) not in satisfied:
+            f.append(
+                Finding(
+                    "S",
+                    "error",
+                    node,
+                    f"{kind} reads {buf} from partition {src_part} without barrier",
+                    partition=part,
                 )
-            note_write(op.dst, op.partition, op.id)
+            )
+
+    for op in flatten_ops(k.body):
+        if isinstance(op, Copy):
+            require_visible(op.src, op.partition, op.id, "copy")
+            note_write(op.dst, op.partition)
         elif isinstance(op, Mma):
             for buf in (op.a, op.b, op.c):
-                src_part = producers.get(buf)
-                if src_part and src_part != op.partition and (src_part, op.partition) not in satisfied:
-                    f.append(
-                        Finding(
-                            "S",
-                            "error",
-                            op.id,
-                            f"mma reads {buf} from partition {src_part} without barrier",
-                            partition=op.partition,
-                        )
-                    )
-            note_write(op.c, op.partition, op.id)
+                require_visible(buf, op.partition, op.id, "mma")
+            note_write(op.c, op.partition)
+        elif isinstance(op, Reduce):
+            require_visible(op.src, op.partition, op.id, "reduce")
+            note_write(op.dst, op.partition)
         elif isinstance(op, Barrier):
             for w in op.wait_for:
                 satisfied.add((w, op.arrive))

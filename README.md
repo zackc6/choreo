@@ -2,7 +2,9 @@
 
 Typed **kernel choreography IR** for the data plane.
 
-Agents (if any) live in a *different* repo. This tree is the compiler object: an IR you can construct, check, simulate, and later lower. It is **not** an orchestrator, MCP server, agent graph, or fitness-\(F\) controller.
+This tree is the compiler object: an IR you can construct, check, simulate, and print. It is **not** an orchestrator, MCP server, agent graph, or fitness-\(F\) controller. Agents (if any) live in a different repo.
+
+Upstream sketch: [zackc6/choreo](https://github.com/zackc6/choreo).
 
 ## Survey lean this implements
 
@@ -29,9 +31,9 @@ Cake, Argus, and TIRx are ★/B evidence for the *same* missing data-plane objec
 |---|---|---|---|---|
 | Typed schedule (roles, barriers, tiers) | Yes; **no** layout algebra | Implicit in the tile DSL | Orchestration in source | **Yes** |
 | Layout algebra + compile-time discharge | No | Yes (tags + SMT, thread/element/point CEX) | Storage contract, not CuTe work-partition | **Yes** (algebra + cheap checks; SMT optional) |
-| FFI construct / inspect / mutate | Harness (not public) | Pythonic DSL | TVM FFI | **Yes** (Python AST is the FFI) |
+| FFI construct / inspect / mutate | Harness (not public) | Pythonic DSL | TVM FFI | **Yes** (Python AST is the FFI; JSON too) |
 | Pre-GPU admit | Safety / conformance / schedule gates | Layout SMT | Wellformed / sync / race / value-sim | **Union: W/L/S/V** |
-| Lowering | CUDA/PTX | AMD ISA | CUDA C++/PTX | Interpreter first; one real sink later |
+| Lowering | CUDA/PTX | AMD ISA | CUDA C++/PTX | Interpreter + one Triton printer |
 | Public tree | No | No | TVM | This repo |
 
 Vendor DSLs (TileLang, Gluon, TLX, CuTe DSL, FlyDSL, ThunderKittens) are **sinks** this IR may lower *into*. They are not the LLM-oriented face.
@@ -48,13 +50,51 @@ Vendor DSLs (TileLang, Gluon, TLX, CuTe DSL, FlyDSL, ThunderKittens) are **sinks
 
 A **checkable IR**, not a kernel-agent product.
 
-1. **AST** — kernel, buffers, layouts, partitions (roles), ops, barriers.
+1. **AST** — kernel, buffers, layouts, partitions (roles), ops (`Copy`, `Mma`, `Reduce`, `Barrier`, `Pipeline`, `Yield`).
 2. **Admit W/L/S/V** — wellformed, layout legality, sync/race, tiny-tile value sim — returning *localized* findings (program point, optional thread/element), not scraped compiler stdout.
 3. **CPU interpreter** — so admit does not require a GPU (TIRx-style sim).
-4. **One printer** — Triton *or* CUDA C++ snippets for a handful of kernels (copy, GEMM tile). Chosen later; not a multi-DSL agent.
+4. **One printer** — Triton sketches for copy and GEMM-tile kernels.
 
-v2 (still data plane): plugin lowers to Gluon/TLX/TileLang/HIP; optional Z3 on layout tags.  
+v2 (still data plane): plugin lowers to Gluon/TLX/TileLang/HIP; optional Z3 on layout tags.
 v3 (other repo): an agent that mutates Choreo IR and consumes finding JSON.
+
+## Run
+
+Python 3.11+.
+
+```bash
+python3 -m pip install -e '.[dev]'
+python3 -m pytest -q
+```
+
+Admit / simulate / print from JSON (see `examples/`):
+
+```bash
+python3 -m choreoir check examples/copy.json
+python3 -m choreoir sim examples/gemm.json \
+  --tensors examples/gemm.tensors.json \
+  --expected examples/gemm.expected.json
+python3 -m choreoir print examples/gemm.json
+```
+
+Or from Python:
+
+```python
+from choreoir import Buffer, Copy, Kernel, Layout, Partition, check
+
+k = Kernel(
+    "copy",
+    buffers=(
+        Buffer("A", "gmem", Layout((8, 8), (8, 1)), "f16"),
+        Buffer("S", "smem", Layout((8, 8), (8, 1)), "f16"),
+    ),
+    partitions=(Partition("load", "load", 4),),
+    body=(Copy("c0", "A", "S", "load"),),
+)
+assert check(k) == []
+```
+
+Findings are JSON-serializable (`Finding.as_dict`) so a later agent can consume them without scraping stdout.
 
 ## Falsifiers
 
@@ -73,12 +113,8 @@ v3 (other repo): an agent that mutates Choreo IR and consumes finding JSON.
 ## Layout
 
 ```text
-choreoir/     Python AST + checkers + interpreter
-tests/        wellformed / layout / sync / sim
+choreoir/     Python AST + checkers + interpreter + Triton printer + JSON FFI
+examples/     copy and GEMM-tile kernels as JSON
+tests/        wellformed / layout / sync / sim / printer / CLI
 docs/SPEC.md  grammar and admit rules
-```
-
-```bash
-python3 -m pip install -e '.[dev]'
-python3 -m pytest -q
 ```

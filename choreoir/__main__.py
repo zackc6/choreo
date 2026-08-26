@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from .check import check
+from .interp import check_value, simulate
+from .jsonio import kernel_from_dict, kernel_to_dict
+from .print_triton import print_triton
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(
+        prog="choreo",
+        description="Admit, simulate, and print Choreo IR kernels. Data plane only.",
+    )
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    c = sub.add_parser("check", help="run W/L/S admit; exit 1 if any error")
+    c.add_argument("kernel", type=Path)
+
+    s = sub.add_parser("sim", help="CPU interpreter (V-gate if --expected is set)")
+    s.add_argument("kernel", type=Path)
+    s.add_argument("--tensors", type=Path, required=True)
+    s.add_argument("--expected", type=Path, default=None)
+
+    t = sub.add_parser("print", help="print a Triton sketch")
+    t.add_argument("kernel", type=Path)
+
+    d = sub.add_parser("dump", help="round-trip kernel JSON to stdout")
+    d.add_argument("kernel", type=Path)
+
+    args = p.parse_args(argv)
+    kernel = kernel_from_dict(_read_json(args.kernel))
+
+    if args.cmd == "check":
+        findings = check(kernel)
+        print(json.dumps([f.as_dict() for f in findings], indent=2))
+        return 1 if any(f.severity == "error" for f in findings) else 0
+
+    if args.cmd == "sim":
+        tensors = _read_json(args.tensors)
+        if args.expected is not None:
+            findings = check_value(kernel, tensors, _read_json(args.expected))
+            print(json.dumps([f.as_dict() for f in findings], indent=2))
+            return 1 if findings else 0
+        store, findings = simulate(kernel, tensors)
+        print(json.dumps({"store": store, "findings": [f.as_dict() for f in findings]}, indent=2))
+        return 1 if findings else 0
+
+    if args.cmd == "print":
+        sys.stdout.write(print_triton(kernel))
+        return 0
+
+    if args.cmd == "dump":
+        print(json.dumps(kernel_to_dict(kernel), indent=2))
+        return 0
+
+    return 2
+
+
+def _read_json(path: Path) -> dict:
+    return json.loads(path.read_text())
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

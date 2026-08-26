@@ -1,0 +1,24 @@
+{
+  "name": "copy",
+  "params": [{"name": "A", "dtype": "f16", "shape": [2, 2]}],
+  "buffers": [
+    {
+      "name": "A",
+      "space": "gmem",
+      "dtype": "f16",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
+    },
+    {
+      "name": "S",
+      "space": "smem",
+      "dtype": "f16",
+      "layout": {"shape": [2, 2], "stride": [2, 1]}
+    }
+  ],
+  "partitions": [{"name": "load", "role": "load", "width": 4}],
+  "body": [
+    {"op": "copy", "id": "c0", "src": "A", "dst": "S", "partition": "load"},
+    {"op": "yield", "id": "y0", "values": ["S"]}
+  ],
+  "attrs": {}
+}
