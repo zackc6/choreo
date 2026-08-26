@@ -4,11 +4,11 @@
     "schema_version": "cache-key.v0",
     "graph_hash": "sha256:da10ec6e5ccfe27c7ee10f4fe4db4a5d41588fe4a0e4d8de08dc7ad0cadbf300",
     "hw_id": "nvidia.sm_80",
-    "compiler_ver": "choreoir==0.1.10;cuda.cxx",
+    "compiler_ver": "choreoir==0.1.11;cuda.cxx",
     "adapter_id": "choreo.v0",
     "policy_id": "lintel.specialize.v0"
   },
-  "cache_key_digest": "sha256:633236e08da8e8c93d7cc1e4200779607d5247aee821c746007fcb09b7ee4b40",
+  "cache_key_digest": "sha256:5b60ecc86316e510c62dccab4689b2886b3f40d1a8166867b049d4762ab7e550",
   "kernel": "gemm_tile",
   "family": "cuda",
   "isa": "mma.sync",
