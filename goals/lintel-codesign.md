@@ -1,6 +1,6 @@
 # Goal: Choreo × Lintel co-design
 
-Status: active. Durable product cut for this tree.
+Status: active. Implementer detail under the **final** architecture: [`agentic-compiler.md`](agentic-compiler.md). Do not let this file overwrite that picture.
 Skill (how to implement it): [`skills/choreo-lintel-codesign/SKILL.md`](../skills/choreo-lintel-codesign/SKILL.md).
 
 ## One line
@@ -11,12 +11,13 @@ Year-1 is **Horizon A, job (a), M1-lite**: one e2e controller (Lintel) searches 
 
 ## Objective
 
-Co-design Choreo and Lintel as two objects:
+Three cooperating objects, as in [`agentic-compiler.md`](agentic-compiler.md):
 
-- **Choreo** (this repo) is the **data plane**: a closed Kernel AST, localized admit, classical lowering. Kind 1: a program. The only year-1 *search* surface.
-- **Lintel** (other repo) is the **control plane**: workload contract, admit freeze, land / revert / reject, serving \(F\). Kind 4: a workflow. Kind 3: the freeze record.
+- **Lintel** (other repo) is the **control plane**: workload contract, admit freeze, land / revert / reject, serving score. Kind 4: a workflow. Kind 3: the freeze record.
+- **Choreo** (this repo) is the **kernel the agent edits**: a closed Kernel AST, localized admit. Kind 1: a program. The live *search* surface.
+- **Lowering** is classical **codegen**: consume the schedule, emit a GPU or NPU binary. Stand-in lives in this tree (`choreoir.lower`). Not a search surface, not an LLM.
 
-Mixing those kinds is how a control-plane company accidentally becomes a kernel language.
+Mixing control and face is how a control-plane company accidentally becomes a kernel language. Burying lowering inside the face is how a typed IR pretends it is already the device compiler.
 
 ## Survey placement (direction vs stack)
 
@@ -84,7 +85,7 @@ Only one is a Lintel object.
 | Cake piece | Object | Owner |
 |---|---|---|
 | (1) Typed IR the agent edits | A program | **Choreo** (face). Lintel *carries* it. |
-| (2) Lowering that emits a device binary | A compiler / sink | **This tree** (classical). Path assumed; ISA designed later. Not Lintel. |
+| (2) Lowering that emits a device binary | A compiler / sink | **Lowering** (classical). Stand-in in this tree; ISA designed later. Not Lintel. |
 | (3) Evolving harness | A workflow | **Lintel** — control-plane slice only |
 
 **Lintel owns:** generate → filter → oracle → route evidence → merge gate; freeze / `%k`; serving \(F\) as land criterion.

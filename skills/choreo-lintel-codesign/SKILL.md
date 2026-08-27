@@ -1,7 +1,8 @@
 ---
 name: choreo-lintel-codesign
 description: >-
-  Co-design rules for Choreo (data plane) vs Lintel (control plane).
+  Co-design rules for the final architecture: Lintel (control), Choreo (kernel
+  face), lowering (classical codegen) under a next-generation agentic compiler.
   Use when changing the Kernel AST, admit (W|L|S|V), printers/sinks, README/SPEC,
   git landing, or anything that mentions Cake, Argus, TIRx, Lintel, harness,
   freeze, or targets (GPU / Ascend). This repo commits to main only; no PRs.
@@ -9,7 +10,7 @@ description: >-
 
 # Choreo × Lintel co-design
 
-Read [`goals/lintel-codesign.md`](goals/lintel-codesign.md) for the product cut. This skill is the implementer SOP for **this repo**.
+**Never forget** [`goals/agentic-compiler.md`](goals/agentic-compiler.md) — final architecture. This skill is the implementer SOP for **this repo**. Detail: [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
 
 Choreo is a typed kernel choreography IR for the data plane — Lintel’s L4 face.
 
@@ -17,6 +18,7 @@ Choreo is a typed kernel choreography IR for the data plane — Lintel’s L4 fa
 
 ## When to use
 
+- Any change that could forget or overwrite [`goals/agentic-compiler.md`](goals/agentic-compiler.md).
 - Editing `choreoir/`, `docs/SPEC.md`, `README.md`, `goals/`, or this skill.
 - Adding ops, spaces, roles, checks, printers, or JSON fields.
 - Discussing Cake, Argus, TIRx, “compiler evolution,” or dual-target (GPU / Ascend).
@@ -35,6 +37,7 @@ Choreo is a typed kernel choreography IR for the data plane — Lintel’s L4 fa
 
 ## Invariants (never break)
 
+0. **Final architecture.** Next-generation agentic compiler: Lintel conducts; Choreo is the kernel the agent edits; lowering is classical codegen; serve loads a frozen binary. Do not mix these. Picture: [`goals/agentic-compiler.md`](goals/agentic-compiler.md).
 1. **Choreo is the data plane.** Closed Kernel AST, `check()`, CPU sim, deterministic printers/sinks. Kind 1: a program.
 2. **Lintel is the control plane** (other repo). Land / revert / reject, freeze / `%k`, serving \(F\), evidence routing. Kind 4 / kind 3.
 3. **Do not mix kinds.** Do not put MCP, agent DAGs, budget/stop, or land/revert in `choreoir`. Do not let Lintel invent Choreo keywords without a spec bump in this tree.
@@ -126,7 +129,8 @@ When changing this repo, ask:
 
 ## Pointers
 
-- Goal: [`goals/lintel-codesign.md`](goals/lintel-codesign.md)
+- Final architecture (never forget): [`goals/agentic-compiler.md`](goals/agentic-compiler.md)
+- Goal detail: [`goals/lintel-codesign.md`](goals/lintel-codesign.md)
 - Lintel consume contract: [`docs/LINTEL_CONSUME.md`](docs/LINTEL_CONSUME.md)
 - Grammar / admit: [`docs/SPEC.md`](docs/SPEC.md)
 - AST / check / printer: `choreoir/`

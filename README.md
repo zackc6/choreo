@@ -8,7 +8,7 @@ Typed kernel choreography IR for the data plane — Lintel’s L4 face.
 
 **Lintel IR** is the control-plane IR that conducts that loop. It does not rewrite Choreo’s dialect at search time.
 
-Co-design: [`goals/lintel-codesign.md`](goals/lintel-codesign.md). What Lintel should consume: [`docs/LINTEL_CONSUME.md`](docs/LINTEL_CONSUME.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](skills/choreo-lintel-codesign/SKILL.md). Git: commit and push `main` only; no pull requests.
+Final architecture (never forget): [`goals/agentic-compiler.md`](goals/agentic-compiler.md). Co-design detail: [`goals/lintel-codesign.md`](goals/lintel-codesign.md). What Lintel should consume: [`docs/LINTEL_CONSUME.md`](docs/LINTEL_CONSUME.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](skills/choreo-lintel-codesign/SKILL.md). Git: commit and push `main` only; no pull requests.
 
 Upstream sketch: [zackc6/choreo](https://github.com/zackc6/choreo).
 
@@ -145,7 +145,7 @@ examples/     copy and GEMM-tile kernels as JSON (gmem writeback); fails/ T5 cor
 tests/        wellformed / layout / sync / sim / printer / CLI
 docs/SPEC.md  grammar and admit rules
 docs/LINTEL_CONSUME.md  what the Lintel plan repo should treat as current
-goals/        co-design goals (Lintel control plane / Choreo data plane)
+goals/        final architecture (agentic compiler) + co-design detail
 skills/       implementer SOP for that cut
 schemas/      Lintel cache-key.v0 handshake copy (Lintel is source of truth)
 AGENTS.md     which skill to read before editing
