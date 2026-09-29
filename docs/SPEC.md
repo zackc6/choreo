@@ -1,12 +1,12 @@
 # Choreo IR spec (v0.1)
 
-Status: draft. Data-plane object only. No agent protocol in this file.
+Status: draft. Kernel-schedule compiler only. No agent protocol in this file.
 
 Final architecture: [`goals/agentic-compiler.md`](../goals/agentic-compiler.md). Co-design with Lintel: [`goals/lintel-codesign.md`](../goals/lintel-codesign.md). What Lintel should consume: [`LINTEL_CONSUME.md`](LINTEL_CONSUME.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](../skills/choreo-lintel-codesign/SKILL.md).
 
 ## 1. Design rules
 
-1. **One band.** Choreo is an L4 kernel IR. It does not represent framework graphs, MLIR pass pipelines, CUDA Graphs, or agent DAGs.
+1. **Kernel schedule.** v0.1 is one kernel: buffers, layouts, partitions, and a straight-line body. It does not represent framework graphs, MLIR pass pipelines, CUDA Graphs, or agent workflows. A wider scope is a new compiler version or another representation, decided outside an application search.
 2. **Structured, not textual.** The source of truth is the AST. Pretty-printers exist for humans; agents must not round-trip through dumped Triton/CUDA as the mutation API.
 3. **Enumerate mutations.** Ops, memory spaces, partition roles, and barrier kinds are closed enums in v1. New hardware enters as new op/intrinsic variants (TIRx: intrinsics first), not free SSA.
 4. **Admit before codegen.** `check(kernel) -> list[Finding]` is total. Codegen is refused if any finding has `severity=error`.
@@ -35,11 +35,11 @@ Allowed:
 - Create/replace a `Kernel` AST (or a JSON encoding of it).
 - Edit enumerated fields: `target`, tile sizes, partition widths, pipeline depth, layout strides, which `Copy`/`Mma` variant.
 
-Forbidden (in this IR, forever):
+Forbidden during an application search:
 
 - Embed raw PTX/CUDA/Triton strings as the program.
-- Emit pass lists, MCP tool calls, or serving-level A/B policy.
-- Invent new memory spaces or roles without a spec bump.
+- Emit pass lists, MCP tool calls, or serving policy.
+- Invent new memory spaces or roles in the emitted program. Those require an IR-evolution spec bump (a check and both sinks in the same change).
 
 ## 4. Admit pipeline (W → L → S → V)
 
@@ -52,11 +52,11 @@ Forbidden (in this IR, forever):
 
 v1 implements W fully (including role/space: gmem→onchip wants `load`, onchip→gmem wants `store`, MMA/Reduce want `math`; `generic` is the escape; `Pipeline.body` must be the staged region — empty body is a W error), L for static shapes, S for barrier pairing (localized to arriving `partition` + `thread=0` first lane) **and** cyclic `wait_for` → `arrive`, V for `Copy`, `Mma`, and `Reduce` on CPU (`choreo check --tensors --expected` runs W→L→S then V). SMT (Argus Z3) is v2: same finding schema, heavier solver.
 
-These gates are **T2-color signals**, not serving oracles (T6). Passing V does not mean SGLang A/B.
+These gates are compiler diagnostics. Passing V is not an application score.
 
 ## 5. Lowering
 
-This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kernel)` is refused if `check` has `severity=error` or `target` is missing. **Designed L5 ISA is later.** Year-1 stand-in printers consume the schedule and, when `nvcc` / `ccec` are present, emit official ELF cubin / NPU-bin objects. Agents do not mutate PTX.
+This compiler object **always** lowers to NVIDIA GPU and Ascend NPU. `lower(kernel)` is refused if `check` has `severity=error` or `target` is missing. **Device ISA design is later.** Year-1 stand-in printers consume the schedule and, when `nvcc` / `ccec` are present, emit official ELF cubin / NPU-bin objects. Agents do not mutate PTX.
 
 | Family | `Kernel.target` | Sink | Consumes |
 |---|---|---|---|
@@ -112,10 +112,10 @@ Choreo **storage layout** is an explicit contract for admit and for the sinks (c
 }
 ```
 
-`cache_key` is the freeze key (additionalProperties false). `cache_key_digest` is `sha256` of that object's canonical JSON (sorted keys, no whitespace) and is the lookup address — not a sixth key field. **Not in the key:** `model_id`, `enum_id`, `Kernel.target`, `launch`. Year-1 has no L2 graph: default `graph_hash` is `sha256(lintel.graph.unspecified)`, not a hash of the Kernel JSON; Lintel overwrites it at freeze (`--graph-hash` / `attrs.graph_hash`). `hw_id` is derived from family/arch (`nvidia.sm_*` / `ascend.davinci`) or stamped (`--hw-id`); admission is that id, not `target`. `adapter_id` is the L4 **face** (`choreo.v0`). `sink_id` is the device compiler (`nvcc.cubin` / `ccec.aicore` / `cuda.cxx` / `ascendc.cce`) and is also the suffix of `cache_key.compiler_ver`. `launch` is how Q1 `lookup(%k)` runs the cubin (CUDA `<<<grid, block>>>` from partition widths; Ascend year-1 one aicore). That is the **payload** Lintel freezes. This tree does not freeze, land, revert, or serve \(F\). `choreo consume-check PATH` checks a Lintel checkout against that contract. Handshake schema: [`schemas/cache-key.v0.schema.json`](../schemas/cache-key.v0.schema.json) (Lintel is source of truth).
+`cache_key` is the freeze key (additionalProperties false). `cache_key_digest` is `sha256` of that object's canonical JSON (sorted keys, no whitespace) and is the lookup address — not a sixth key field. **Not in the key:** `model_id`, `enum_id`, `Kernel.target`, `launch`. Year-1 does not hash a framework graph: default `graph_hash` is `sha256(lintel.graph.unspecified)`, not a hash of the Kernel JSON; Lintel overwrites it at freeze (`--graph-hash` / `attrs.graph_hash`). `hw_id` is derived from family/arch (`nvidia.sm_*` / `ascend.davinci`) or stamped (`--hw-id`); admission is that id, not `target`. `adapter_id` is this kernel-schedule representation (`choreo.v0`). `sink_id` is the device compiler (`nvcc.cubin` / `ccec.aicore` / `cuda.cxx` / `ascendc.cce`) and is also the suffix of `cache_key.compiler_ver`. `launch` is how Q1 `lookup(%k)` runs the cubin (CUDA `<<<grid, block>>>` from partition widths; Ascend year-1 one aicore). That is the **payload** Lintel freezes. This tree does not freeze, land, revert, or serve \(F\). `choreo consume-check PATH` checks a Lintel checkout against that contract. Handshake schema: [`schemas/cache-key.v0.schema.json`](../schemas/cache-key.v0.schema.json) (Lintel is source of truth).
 
 Kernel JSON (construct / inspect / mutate) is defined by `choreoir.jsonio.kernel_to_dict`. Canonical op tags are `"op": "copy"|"mma"|"reduce"|"barrier"|"pipeline"|"yield"`. Lintel examples that use PascalCase (`Copy`) are accepted on **read**. `choreo propose` emits `lintel.adapter_proposal.v0`: face `adapter_id=choreo.v0`, Kernel JSON as the payload, `gates: [W,L,S,V]`. On admit error, `reject.{where,hint,finding}` is the CFG edge Lintel copies (`where` is W|L|S|V only — `compile_ok` is Lintel's post-sink gate). V is folded in only when `--tensors` and `--expected` are set; Kernel-only propose walks W/L/S. Handshake: [`schemas/adapter-proposal.v0.schema.json`](../schemas/adapter-proposal.v0.schema.json). This tree does not walk that CFG.
 
 ## 7. Out of spec
 
-Event Tensor / persistent megakernels, cluster launch, power/energy objectives, artifact hashing for CI replay, agent-search rungs. Those attach *above* or *beside* this IR (L6, L7, T3, control plane).
+Event Tensor / persistent megakernels, cluster launch, power/energy objectives, and agent-search policy. Those are later scope or control-plane decisions, not missing opcodes to add during an application search.

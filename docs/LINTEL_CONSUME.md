@@ -2,7 +2,7 @@
 
 Sibling: [zackc6/lintel](https://github.com/zackc6/lintel). **Read there, do not copy `choreoir` into it.** This file is what that plan repo should treat as current. Lintel year-1 is docs + schemas (no `src/`). This agent cannot push `zackc6/lintel` (`cursor[bot]` 403).
 
-Choreo is the data-plane **compiler object**. Lintel is the control plane. Union is **admit signals**, not languages.
+Choreo is the kernel-schedule **compiler**. Lintel is the control plane. Union is **admit signals**, not languages. Application search, IR evolution, and controller improvement stay separate loops; see [`goals/agentic-compiler.md`](../goals/agentic-compiler.md).
 
 ## Commands
 
@@ -32,7 +32,7 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 - [`examples/copy.pin.json`](../examples/copy.pin.json) / [`examples/gemm.pin.json`](../examples/gemm.pin.json)
 - [`examples/fails/layout_cover.proposal.json`](../examples/fails/layout_cover.proposal.json) — `{where: L}`
 - [`examples/fails/value_mismatch.proposal.json`](../examples/fails/value_mismatch.proposal.json) — `{where: V}` (needs `--tensors` / `--expected`)
-- T5-lite `{where}` corpus: [`examples/fails/`](../examples/fails/) — W (`unknown_buffer`, `role_mismatch`, `pipeline_depth`, `pipeline_empty`), L (`layout_cover`, `mma_shape`), S (`sync_race`, `cyclic_wait`), V (`value_mismatch` + tensors). Kernel `compiler_ver` is `0.1.13` (same pin as `copy` / `gemm_tile`; adapter-proposal `compiler_ver` is `choreoir==0.1.13;cuda.cxx`). `choreo propose` always walks W/L/S; V is folded into `reject.where` only when `--tensors` and `--expected` are both set (Kernel-only propose does not invent a V edge). A `Pipeline` with `depth>=1` and empty `body` is `{where: W}` (`pipeline_empty`): the sink stages `body`, so a marker pipeline is syntax without effects. Nest ops like [`examples/gemm.json`](../examples/gemm.json).
+- Application-search reject corpus: [`examples/fails/`](../examples/fails/) — W (`unknown_buffer`, `role_mismatch`, `pipeline_depth`, `pipeline_empty`), L (`layout_cover`, `mma_shape`), S (`sync_race`, `cyclic_wait`), V (`value_mismatch` + tensors). These localize `{where}` for the next kernel. They are not evidence that the compiler evolved. Kernel `compiler_ver` is `0.1.13` (same pin as `copy` / `gemm_tile`; adapter-proposal `compiler_ver` is `choreoir==0.1.13;cuda.cxx`). `choreo propose` always walks W/L/S; V is folded into `reject.where` only when `--tensors` and `--expected` are both set (Kernel-only propose does not invent a V edge). A `Pipeline` with `depth>=1` and empty `body` is `{where: W}` (`pipeline_empty`): the sink stages `body`, so a marker pipeline is syntax without effects. Nest ops like [`examples/gemm.json`](../examples/gemm.json).
 
 ## `%k` (`cache-key.v0`)
 
@@ -76,16 +76,17 @@ Sinks consume `Partition` (width → CUDA `__launch_bounds__` / thread stride fr
 
 Lintel YEAR1 “Ascend waits until one NVIDIA cubin” is **satisfied** as a prerequisite. Dual-live *search* is still Lintel's call; this tree **always** lowers to both families. Public CI on this `main` fetches official nvcc and fails if cubin tests would skip (`CHOREO_REQUIRE_NVCC=1`). That is not Lintel `compile_ok`. `ccec` is not a public redist; NPU-bin ELF tests skip on GitHub. Two `%k` for the same `copy` Kernel still run there: pin helpers + the land/sibling freeze addresses (`sha256:20785880…` / `sha256:35a48584…`).
 
-## Two clocks (T5, not M3)
+## Three loops
 
-This repo **does not use GitHub PRs**. Evolution is a **commit on `choreoir` `main`**, then bump `compiler_ver` → new `%k`.
+This repo **does not use GitHub PRs**. An IR-evolution change is a **commit on `main`**, then bump `compiler_ver` → new `%k`. Older notes that say “T5” mean this compiler-version promotion, not controller self-improvement.
 
-| Clock | Allowed |
+| Loop | Allowed |
 |---|---|
-| Inside one job | `choreoir` pinned. Fail `{where}` → next Kernel, not a new opcode. |
-| Across CI | Recurring `{where}` → Lintel conducts a commit on this `main` → new `%k`. |
+| Application search | `choreoir` pinned. Fail `{where}` → next Kernel, not a new opcode. |
+| IR evolution | Recurring `{where}`, or a schedule the sink cannot express → Lintel conducts a commit on this `main` → new `%k`. Previous allowlist still passes. |
+| Controller improvement | Not this tree. A Lintel prompt or workflow edit is not a `compiler_ver` bump. |
 
-Rewriting `check.py` mid-walk is M3. Forbidden here.
+Rewriting `check.py` inside one application search is forbidden.
 
 ## Stale rows in Lintel `docs/CHOREO.md` “Blocked on choreo”
 

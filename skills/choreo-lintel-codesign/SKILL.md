@@ -1,20 +1,21 @@
 ---
 name: choreo-lintel-codesign
 description: >-
-  Co-design rules for the final architecture: Lintel (control), Choreo (kernel
-  face), lowering (classical codegen) under a next-generation agentic compiler.
-  Use when changing the Kernel AST, admit (W|L|S|V), printers/sinks, README/SPEC,
-  git landing, or anything that mentions Cake, Argus, TIRx, Lintel, harness,
-  freeze, or targets (GPU / Ascend). This repo commits to main only; no PRs.
+  Co-design rules for the starting architecture: Lintel (control), Choreo
+  (kernel-schedule compiler), classical lowering. Three loops stay apart:
+  application search, IR evolution, controller improvement. Use when changing
+  the Kernel AST, admit (W|L|S|V), printers/sinks, README/SPEC, git landing,
+  or anything that mentions Cake, Ave, Argus, TIRx, Lintel, harness, freeze,
+  or targets (GPU / Ascend). This repo commits to main only; no PRs.
 ---
 
 # Choreo × Lintel co-design
 
-**Never forget** [`goals/agentic-compiler.md`](goals/agentic-compiler.md) — final architecture. This skill is the implementer SOP for **this repo**. Detail: [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
+**Never forget** [`goals/agentic-compiler.md`](goals/agentic-compiler.md) — the starting architecture. This skill is the implementer SOP for **this repo**. Detail: [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
 
-Choreo is a typed kernel choreography IR for the data plane — Lintel’s L4 face.
+Choreo is the kernel-schedule compiler in this repo: the program the agent edits, the checks, and classical lowering to NVIDIA GPU and Ascend NPU.
 
-**Not a compiler company** means Lintel’s SKU is the control plane, not Cake/TVM-as-product. It does **not** mean this tree skips codegen. **This tree is the compiler object:** construct, check, simulate, print, and **always lower to NVIDIA GPU and Ascend NPU**. Year-1 is Horizon A / M1-lite: Lintel searches **only L4**; L5 is classical and **assumed (ISA designed later)**. Compiler evolution is **two clocks** (T5 across jobs, never M3 mid-walk). **Lintel IR** conducts that loop.
+**Three loops, kept apart.** Application search edits a `Kernel` under a pinned `compiler_ver`. IR evolution is a separate commit on `main` that may change the representation, a check, or a sink, then bumps `compiler_ver`. Controller improvement (how Lintel decides) is not this tree. Revised against [zackc6/ai-compiler-survey](https://github.com/zackc6/ai-compiler-survey) through 2026-09-23. Judgment: [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
 
 ## When to use
 
@@ -37,33 +38,33 @@ Choreo is a typed kernel choreography IR for the data plane — Lintel’s L4 fa
 
 ## Invariants (never break)
 
-0. **Final architecture.** Next-generation agentic compiler: Lintel conducts; Choreo is the kernel the agent edits; lowering is classical codegen; serve loads a frozen binary. Do not mix these. Picture: [`goals/agentic-compiler.md`](goals/agentic-compiler.md).
-1. **Choreo is the data plane.** Closed Kernel AST, `check()`, CPU sim, deterministic printers/sinks. Kind 1: a program.
-2. **Lintel is the control plane** (other repo). Land / revert / reject, freeze / `%k`, serving \(F\), evidence routing. Kind 4 / kind 3.
-3. **Do not mix kinds.** Do not put MCP, agent DAGs, budget/stop, or land/revert in `choreoir`. Do not let Lintel invent Choreo keywords without a spec bump in this tree.
-4. **Yes as a typed L4 face for Lintel. No as a compiler *company* (SKU). Yes as a compiler *object* that must lower to NV GPU and Ascend NPU. No as Cake + Argus + TIRx glued into one dialect.**
-5. **Union of admit signals, not languages.** W/L/S/V may draw on Cake / Argus / TIRx *mechanisms*. Do not average those IRs. Third cell: cheap `shape × stride` so `{where: L}` can fire. No year-1 Z3. No CuTe work-partition.
-6. **Lowering is classical.** Interpreter and sinks are deterministic functions of the AST. Not LLM calls. The model does not rewrite the dialect (mlirAgent negative). L5 is not a search surface. Do not design cubin/NPU ISA here until that later design lands; year-1 printers are the stand-in and must still consume the schedule.
-7. **`check() == []` is not serving \(F\).** Findings are T2-color compiler diagnostics. \(F\) lives in Lintel.
-8. **Two clocks.** Inside one job, `choreoir` is pinned: fail `{where}` → next Kernel, not a new opcode. Across CI, Lintel conducts commits on `main` and a new `%k`. Rewriting `check` during `^try0`→`^try1` is M3 — forbidden.
+0. **Starting architecture.** Lintel conducts application search; Choreo is the kernel compiler the agent edits; lowering is classical; serve loads a frozen binary. Picture: [`goals/agentic-compiler.md`](goals/agentic-compiler.md). Do not treat that picture as proof that every compiler must keep the split.
+1. **Choreo is the kernel-schedule compiler.** Closed Kernel AST for the pinned version, `check()`, CPU sim, deterministic printers/sinks.
+2. **Lintel is the control plane** (other repo). Land / revert / reject, freeze / `%k`, application score, evidence routing.
+3. **Do not mix loops.** Do not put MCP, agent DAGs, budget/stop, land/revert, or controller self-improvement in `choreoir`. Do not let an application search invent Choreo keywords.
+4. **Yes as this compiler object, lowering to NV GPU and Ascend NPU. No as the control plane. No as Cake + Ave + TIRx glued into one dialect.** Ave was Argus before 14 September 2026.
+5. **Union of admit signals, not languages.** W/L/S/V may draw on Cake / Ave / TIRx *mechanisms*. Do not average those IRs. Third cell: cheap `shape × stride` so `{where: L}` can fire. No year-1 Z3. No CuTe work-partition.
+6. **Lowering is classical.** Interpreter and sinks are deterministic functions of the AST. Not LLM calls. The model does not rewrite the dialect during a search. Device ISA is later design. Year-1 printers are the stand-in and must still consume the schedule.
+7. **`check() == []` is not the application score.** Findings are compiler diagnostics. The score lives in Lintel.
+8. **Three loops.** Application search: `choreoir` pinned, fail `{where}` → next Kernel. IR evolution: a commit on `main`, bump `compiler_ver`, new `%k`, previous allowlist still passes. Controller improvement: not this tree. Rewriting `check` during one search is forbidden.
 
-## Cake split (who owns what)
+## Who owns which change
 
-From arXiv:2608.12629 §1–4, three pieces; **only (3) is a Lintel object**:
+Cake (arXiv:2608.12629) bundled a typed IR, lowering, and an evolving harness. The 23 September 2026 survey splits the harness into compiler evolution and controller improvement.
 
-| Piece | This repo may contain | Lintel may contain |
+| Change | This repo | Lintel |
 |---|---|---|
-| (1) Typed IR | Yes — Choreo AST / JSON | Carry the program; do not fork a second face |
-| (2) Lowering | Official `nvcc` cubin / `ccec` NPU-bin sinks that consume the schedule; designed ISA later | No cubin compiler in Lintel |
-| (3) Evolving harness | No workflow. Choreo *undergoes* commits on `main` | *Conducts* the loop: classify fail, corpus-gate, land/revert, freeze |
+| Kernel program | Yes — Choreo AST / JSON | Carries it; does not fork a second face |
+| Checks and lowering | Yes — deterministic; official `nvcc` / `ccec` when present; ISA later | No cubin compiler |
+| IR evolution | Undergoes the commit on `main` | Decides the promotion from evidence; corpus-gates it |
+| Controller improvement | No | Own experiment, compiler held fixed |
+| Freeze / application score | No | Yes |
 
-**Compiler evolution:** Choreo is the artifact that changes (commits to `choreoir` on `main`). Lintel is the process that decides those commits should exist. Choreo does not self-expand when a fail recurs.
+A recurring `{where}` opens an IR-evolution proposal. It does not add an opcode inside the search that saw the reject.
 
-Year-1: evolve **gates + sinks**, not vocabulary.
-
-- Allowed without spec bump: deeper W/L/S/V (role/space, `{where}` fill), cost estimate as a pure function, sinks that actually consume `Barrier` / `Pipeline.depth` / layout / space / partition / gmem writeback.
-- Spec bump required: new op, space, role, or memory enum. Same day: a check that admits it **and** a sink that lowers it. Syntax without effects is forbidden.
-- Never here: serving \(F\), freeze, land/revert, “agents write the compiler” as a runtime feature.
+- Allowed without a spec bump: deeper W/L/S/V, a pure cost estimate, sinks that consume `Barrier` / `Pipeline.depth` / layout / space / partition / gmem writeback.
+- Spec bump, same change: a new op, space, role, or memory enum, a check that admits it, and both sink families lowering it. The existing `copy` / `gemm_tile` kernels still pass. Syntax without effects is forbidden.
+- Never here: application score, freeze, land/revert, controller self-improvement, rewriting `check` inside one search.
 
 ## Lowering (required families; L5 ISA later)
 
@@ -94,22 +95,23 @@ Two SKUs, two sinks, **one** Finding schema. Not one averaged dialect. Lowering 
 
 ## Year-1 cardinality and M2
 
-Allowlist two complete kernels (gmem writeback via `store`). Payload is kind 1; the deal is kind 2. Do not grow ops to look like Cake IR.
+Allowlist two complete kernels (gmem writeback via `store`). That cardinality is the current experiment. Do not grow ops to resemble a language product. A promoted op still needs a check and both sinks, and these two kernels still pass.
 
-Until the later cubin / NPU-bin **ISA** design lands, **M2** on the GPU sink is `@triton.v0` knobs as **standby**. Year-1 NVIDIA cubin via official `nvcc` already exists for the allowlist; do not flip the SKU to knobs while that ELF path holds. If kind 2 wins the SKU anyway, this mutation surface **shrinks to knobs**.
+Until the later cubin / NPU-bin ISA design lands, `@triton.v0` knobs stay a standby sidecar. Year-1 NVIDIA cubin via official `nvcc` already exists for the allowlist; do not flip the product to knobs while that ELF path holds.
 
 ## Implementation checklist
 
 When changing this repo, ask:
 
 - [ ] Will this land as a commit on `main` (no PR, no feature branch)?
-- [ ] Does this add control-plane behavior? If yes, stop — belongs in Lintel.
-- [ ] Does this glue Cake + Argus + TIRx *languages* (layout algebra + hidden layout + TVM in the pin)? If yes, stop.
-- [ ] Does a new AST node have a check **and** a sink that consumes it?
+- [ ] Does this add control-plane or controller-improvement behavior? If yes, stop — belongs in Lintel.
+- [ ] Does this glue Cake + Ave + TIRx *languages* (layout algebra + hidden layout + TVM in the pin)? If yes, stop.
+- [ ] Does a new AST node have a check **and** both sink families consuming it, with `copy` / `gemm_tile` still passing?
 - [ ] Does NVIDIA *and* Ascend `lower()` still consume the new schedule fields?
-- [ ] Is this inventing L5/ISA (PTX, SASS, Davinci) instead of waiting for the later lowering design? If yes, stop.
-- [ ] Could this be read as mid-walk self-modify of `check` (M3)? If yes, stop.
-- [ ] Does this grow Choreo into L2/L3/L6/L7 (graph, MLIR, Inductor, cluster, Event Tensor)? If yes, stop — that is a Lintel tool or a *new* face, not this AST.
+- [ ] Is this inventing the device ISA (PTX, SASS, Davinci) instead of waiting for the later lowering design? If yes, stop.
+- [ ] Could this rewrite `check` or add an opcode inside one application search? If yes, stop.
+- [ ] Does this stuff a graph, MLIR pipeline, or placement dialect into `Kernel`? If yes, stop — that is another representation.
+- [ ] Does this freeze “search only the kernel, forever” or a fixed band count as architecture? If yes, stop — kernel schedule is the starting scope.
 - [ ] Are GPU and Ascend still separate spaces/roles (no unified `onchip`)?
 - [ ] Are findings still `{where, gate, node, ...}` with no scraped stdout as the agent API?
 - [ ] Does `materialize` write `pin.json` (`as_k`) whose `cache_key` is Lintel `cache-key.v0` (`adapter_id=choreo.v0`, no `Kernel.target` in the key, `compiler_ver` names choreoir **and** the sink, `graph_hash` is not a Kernel hash), without this tree freezing?
@@ -123,17 +125,19 @@ When changing this repo, ask:
 - Add Z3, CuTe work-partition, or a second year-1 compiler.
 - Put TVM in the pin just to wrap TIRx; `@tirx.v0` is an optional door for TVM-native partners.
 - Treat Helion / KernelEvolve / TritorX / generic coding agents as year-1 faces (no W/L/S/`%k`).
-- Grow Choreo into FX / HLO / MLIR / Inductor / cluster / Event Tensor. Later L1–L7 coverage is Lintel talking to those compilers, or a new face package — not new opcodes here.
-- Run mlirAgent-style “rewrite the dialect” experiments as the mutation API.
-- Rewrite `check` or add opcodes **inside** one specialize walk. That is M3, not T5.
+- Grow `Kernel` into FX / HLO / MLIR / Inductor / cluster / Event Tensor. A wider scope is a promoted version or another representation, decided outside an application search.
+- Run dialect-rewrite experiments as the mutation API inside one search.
+- Rewrite `check` or add opcodes inside one application search.
+- Call `examples/fails/` evidence that the compiler evolved. That directory localizes rejects for the application search.
+- Record a Lintel prompt or workflow edit as a Choreo `compiler_ver` bump.
 
 ## Pointers
 
-- Final architecture (never forget): [`goals/agentic-compiler.md`](goals/agentic-compiler.md)
-- Goal detail: [`goals/lintel-codesign.md`](goals/lintel-codesign.md)
+- Starting architecture: [`goals/agentic-compiler.md`](goals/agentic-compiler.md)
+- Judgment and detail: [`goals/lintel-codesign.md`](goals/lintel-codesign.md)
 - Lintel consume contract: [`docs/LINTEL_CONSUME.md`](docs/LINTEL_CONSUME.md)
 - Grammar / admit: [`docs/SPEC.md`](docs/SPEC.md)
 - AST / check / printer: `choreoir/`
 - Cake: arXiv:2608.12629
-- Argus: arXiv:2604.18616
+- Ave (previously Argus): arXiv:2604.18616
 - TIRx: https://tvm.apache.org/2026/06/22/tirx

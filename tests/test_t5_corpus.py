@@ -1,7 +1,8 @@
-"""T5-lite fail corpus: localized {where} for Lintel to classify across jobs.
+"""Application-search reject corpus: localized {where} for the next kernel.
 
-These JSON kernels are the year-1 Undergo evidence. A recurring {where} may
-drive a commit on main (new gate/sink). They must not rewrite check mid-walk.
+These JSON kernels show W/L/S/V localization. A recurring {where} may later
+justify an IR-evolution commit on main. They do not rewrite check mid-search,
+and this directory is not evidence that the compiler has evolved.
 """
 
 import json

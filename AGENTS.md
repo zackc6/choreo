@@ -1,10 +1,10 @@
 # Agent instructions
 
-**Never forget** [`goals/agentic-compiler.md`](goals/agentic-compiler.md): next-generation agentic compiler. Lintel conducts; Choreo is the kernel the agent edits; lowering is classical codegen; serve loads a frozen binary.
+**Never forget** [`goals/agentic-compiler.md`](goals/agentic-compiler.md): next-generation agentic compiler. Lintel conducts application search; Choreo is the kernel-schedule compiler the agent edits; lowering is classical codegen; serve loads a frozen binary.
 
-**Choreo IR** is a typed kernel choreography IR for the data plane — Lintel’s face.
+**Choreo IR** is that kernel schedule: tiles, roles, barriers, layouts. Starting scope, not a fixed band count.
 
-**Not a compiler company** is Lintel’s SKU (control plane), not a skip on codegen. **This tree is the compiler object:** construct, check, simulate, print, and lower to NVIDIA GPU and Ascend NPU. Compiler evolution is two clocks (across jobs, never mid-walk rewrite). **Lintel IR** conducts that loop.
+**Three loops.** Application search edits a kernel under a pinned compiler version. IR evolution is a separate commit on `main` (representation, checks, or sinks). Controller improvement is not this tree. Judgment against the survey through 2026-09-23: [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
 
 It is not an orchestrator, MCP server, agent graph, or fitness controller.
 
@@ -16,15 +16,15 @@ It is not an orchestrator, MCP server, agent graph, or fitness controller.
 
 Before any work in this tree, read:
 
-- [`goals/agentic-compiler.md`](goals/agentic-compiler.md) — final architecture (never forget)
+- [`goals/agentic-compiler.md`](goals/agentic-compiler.md) — starting architecture (never forget)
 - [`skills/choreo-lintel-codesign/SKILL.md`](skills/choreo-lintel-codesign/SKILL.md)
 
 Before editing the AST, admit (`W|L|S|V`), printers/sinks, or any Cake / Argus / TIRx / Lintel framing, also read the skill in full.
 
 ## Goals
 
-- [`goals/agentic-compiler.md`](goals/agentic-compiler.md) — **final**: Lintel × Choreo × lowering under an agentic compiler
-- [`goals/lintel-codesign.md`](goals/lintel-codesign.md) — implementer detail under that picture (face vs harness vs sinks)
+- [`goals/agentic-compiler.md`](goals/agentic-compiler.md) — starting architecture: Lintel × Choreo × lowering, three loops
+- [`goals/lintel-codesign.md`](goals/lintel-codesign.md) — scope and IR-evolution judgment, plus implementer detail
 
 ## Grammar
 
