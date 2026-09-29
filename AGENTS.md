@@ -29,3 +29,9 @@ Before editing the AST, admit (`W|L|S|V`), printers/sinks, or any Cake / Argus /
 ## Grammar
 
 - [`docs/SPEC.md`](docs/SPEC.md)
+
+## Cursor Cloud specific instructions
+
+Python 3.12 and g++ are on the default image. Install is `python3 -m pip install --user -e '.[dev]'`, then `CHOREO_FETCH_NVCC=1` so `ensure_nvcc()` places official nvcc 12.8 in `~/.local/cuda-nvcc`. `~/.local/bin` is not on `PATH`; use `python3 -m pytest` and `python3 -m choreoir`.
+
+Match CI with `CHOREO_REQUIRE_NVCC=1 python3 -m pytest -q`. `ccec` is not a public redistributable, so Ascend NPU-bin tests skip. A working product check is `python3 -m choreoir check examples/copy.json`, `sim` on `examples/gemm.json` with its tensor fixtures, and `lower examples/gemm.json --emit cubin` (ELF cubin).
