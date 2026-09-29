@@ -1,8 +1,8 @@
 # Lintel consume contract (from this tree)
 
-Sibling: [zackc6/lintel](https://github.com/zackc6/lintel). **Read there, do not copy `choreoir` into it.** This file is what that plan repo should treat as current. Lintel year-1 is docs + schemas (no `src/`). This agent cannot push `zackc6/lintel` (`cursor[bot]` 403).
+Sibling: [zackc6/lintel](https://github.com/zackc6/lintel). **Read there, do not copy `choreoir` into it.** This file is what that plan repo should treat as current. The live Lintel tree this contract checks is docs + schemas (no `src/`). This agent cannot push `zackc6/lintel` (`cursor[bot]` 403).
 
-Choreo is the kernel-schedule **compiler**. Lintel is the control plane. Union is **admit signals**, not languages. Application search, IR evolution, and controller improvement stay separate loops; see [`goals/agentic-compiler.md`](../goals/agentic-compiler.md).
+Choreo is the kernel-schedule **compiler**. Lintel is the control plane. Union is **admit signals**, not languages. Application search, IR evolution, and controller improvement stay separate loops. Function coverage (represent, transform, map, validate, coordinate) is the early architecture: [`goals/agentic-compiler.md`](../goals/agentic-compiler.md). The names `copy` and `gemm_tile` below are the regression pin of that handshake. They are not the function set. Wording that still says “year-1” in the checker matches this pin’s current Lintel tree; it is not a scope horizon.
 
 ## Commands
 
@@ -22,9 +22,9 @@ python3 -m choreoir consume-check /path/to/lintel
 python3 -m choreoir lower examples/gemm.json -o /tmp/npu --target ascend-a2 --emit npu-bin
 ```
 
-Year-1 allowlist: `copy`, `gemm_tile` (`Pipeline.depth=3` on gemm). Face `adapter_id`: `choreo.v0`.
+Regression pin: `copy`, `gemm_tile` (`Pipeline.depth=3` on gemm). Face `adapter_id`: `choreo.v0`.
 
-`choreo consume-check PATH` is the machine checker of this contract against a Lintel checkout (no `src/`; year-1 slots `copy`/`gemm_tile`; NVIDIA freeze `choreoir==0.1.13;nvcc.cubin` + `artifact.kind=cubin` + `artifact.launch`; session Finding JSON as a sibling of `reject`; propose kernel is the full AST; `%k` digest matches canonical JSON; no Triton as the year-1 sink). It does not freeze, land, or serve \(F\). Tests use tmp mini trees so CI does not clone Lintel. `examples/later/` is skipped. Local absorb (`/tmp/lintel-probe` `daa2d8b`) pins 0.1.13 and passes; `origin/main` (`fda2db2`) still fails (Triton pin, attn slots, `artifact.kind=choreo_kernel`, no `launch`).
+`choreo consume-check PATH` is the machine checker of this contract against a Lintel checkout (no `src/`; slots `copy`/`gemm_tile`; NVIDIA freeze `choreoir==0.1.13;nvcc.cubin` + `artifact.kind=cubin` + `artifact.launch`; session Finding JSON as a sibling of `reject`; propose kernel is the full AST; `%k` digest matches canonical JSON; Triton is not the sink). It does not freeze, land, or serve \(F\). Tests use tmp mini trees so CI does not clone Lintel. `examples/later/` is skipped. Local absorb (`/tmp/lintel-probe` `daa2d8b`) pins 0.1.13 and passes; `origin/main` (`fda2db2`) still fails (Triton pin, attn slots, `artifact.kind=choreo_kernel`, no `launch`).
 
 Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower --emit`):
 
@@ -46,7 +46,7 @@ Checked-in payloads (source sink; cubin/NPU-bin `pin.json` is produced by `lower
 | `graph_hash` | `sha256(lintel.graph.unspecified)` unless stamped | hash of Kernel JSON |
 | `policy_id` | `lintel.specialize.v0` (handshake slot) | |
 | `cache_key_digest` (pin sibling) | sha256 of canonical `cache_key` JSON | a sixth field *inside* `cache_key` |
-| `launch` (pin sibling) | `{grid, block, num_warps, num_stages}` so serve can `<<<grid, block>>>` the cubin | a cache-key field. CUDA `block = partition_warps×32` from summed `Partition.width` (`attrs.num_warps` is the Triton sidecar); Ascend year-1 `block=1` |
+| `launch` (pin sibling) | `{grid, block, num_warps, num_stages}` so serve can `<<<grid, block>>>` the cubin | a cache-key field. CUDA `block = partition_warps×32` from summed `Partition.width` (`attrs.num_warps` is the Triton sidecar); Ascend `block=1` (one aicore) |
 
 `Kernel.target` stays on the AST and as pin **payload** so `lower()` can replay. Admission is `hw_id`. Schema copy: [`schemas/cache-key.v0.schema.json`](../schemas/cache-key.v0.schema.json) (Lintel remains source of truth for field names).
 
@@ -72,9 +72,9 @@ Canonical Kernel JSON is lowercase ops (`copy`, `mma`, …). Lintel examples tha
 | NVIDIA | CUDA C++ (`print_cuda`) | official `nvcc -cubin` → ELF cubin | Triton knobs |
 | Ascend | CCE (`print_ascendc`) | official `ccec --cce-aicore-only -c` → elf64-hiipu | TileLang |
 
-Sinks consume `Partition` (width → CUDA `__launch_bounds__` / thread stride from the AST, not `attrs.num_warps`; CCE `block_idx < width`), `Barrier`, `Pipeline.depth` (CUDA stages `__shared__[depth]`; CCE stages smem UB span × depth; `attrs.num_stages` is the Triton sidecar and must not unstage those reservations), layout, space, gmem writeback, Copy (CUDA gmem↔onchip index loops / CCE `copy_*` nested over shape, both indexed by layout stride), MMA (CUDA scalar MAC / CCE `vmadd` fallback indexed by layout stride), and `Reduce` (CUDA per-thread dst sum; CCE `vector_dup`/`vadd` because aicore rejects scalar `+=`). Missing toolchain = warning, not a fake binary. **M2 `@triton.v0` knobs are standby** because a year-1 NVIDIA cubin has landed (stand-in path, not the later L5 ISA design). The Triton sidecar walks `Copy` / `Barrier` / `Pipeline` / `Mma` / `Reduce` (not the first-op stencil); it is still not `lower().text`. Year-1 `copy` gmem stride is in the cubin because that kernel stores back to gmem; helper kernels with no store are not a CUDA cubin-stride oracle (`nvcc` DCEs them).
+Sinks consume `Partition` (width → CUDA `__launch_bounds__` / thread stride from the AST, not `attrs.num_warps`; CCE `block_idx < width`), `Barrier`, `Pipeline.depth` (CUDA stages `__shared__[depth]`; CCE stages smem UB span × depth; `attrs.num_stages` is the Triton sidecar and must not unstage those reservations), layout, space, gmem writeback, Copy (CUDA gmem↔onchip index loops / CCE `copy_*` nested over shape, both indexed by layout stride), MMA (CUDA scalar MAC / CCE `vmadd` fallback indexed by layout stride), and `Reduce` (CUDA per-thread dst sum; CCE `vector_dup`/`vadd` because aicore rejects scalar `+=`). Missing toolchain = warning, not a fake binary. **`@triton.v0` knobs are standby** because an NVIDIA cubin path has landed. Device ISA stays inside the sink. The Triton sidecar walks `Copy` / `Barrier` / `Pipeline` / `Mma` / `Reduce` (not the first-op stencil); it is still not `lower().text`. The `copy` kernel’s gmem stride is in the cubin because that kernel stores back to gmem; helper kernels with no store are not a CUDA cubin-stride oracle (`nvcc` DCEs them).
 
-Lintel YEAR1 “Ascend waits until one NVIDIA cubin” is **satisfied** as a prerequisite. Dual-live *search* is still Lintel's call; this tree **always** lowers to both families. Public CI on this `main` fetches official nvcc and fails if cubin tests would skip (`CHOREO_REQUIRE_NVCC=1`). That is not Lintel `compile_ok`. `ccec` is not a public redist; NPU-bin ELF tests skip on GitHub. Two `%k` for the same `copy` Kernel still run there: pin helpers + the land/sibling freeze addresses (`sha256:20785880…` / `sha256:35a48584…`).
+This tree **always** lowers to both families. Dual-live *search* is Lintel’s call. Public CI on this `main` fetches official nvcc and fails if cubin tests would skip (`CHOREO_REQUIRE_NVCC=1`). That is not Lintel `compile_ok`. `ccec` is not a public redist; NPU-bin ELF tests skip on GitHub. Two `%k` for the same `copy` Kernel still run there: pin helpers + the land/sibling freeze addresses (`sha256:20785880…` / `sha256:35a48584…`).
 
 ## Three loops
 
