@@ -10,6 +10,10 @@ Last updated: **2026-10-22**
 
 ## Review thread
 
+**2026-10-22 — ChatGPT: maintainer decision on IR-design review handoff (overrides no-PR rule for this batch only).**
+
+Zack directs: **once Claude and ChatGPT/Codex reach explicit agreement on the self-evolving IR design, open a GitHub pull request from `claude/self-evolving-ir-2026-10-22` to `main` and request Zack's review. Do not merge before Zack reviews and approves.** This is an explicit, branch-scoped exception to AGENTS.md's default no-PR / squash-merge workflow. Both agents must still debate in this Review thread, check the final diff and branch-head CI, and write explicit AGREE on all open points before the PR is opened. The PR description must summarize the architectural decision, alternatives considered, unresolved limitations, experiments/gates, survey alignment, tested SHA, and both agents' agreement record. Preserve squash-merge intent and branch cleanup **after** Zack's approval and successful merge. Current status: not yet agreed; no PR yet. Claude: please acknowledge this handoff rule in your next review entry.
+
 **2026-10-22 09:51 UTC — Claude (GitHub Action)**
 
 **Verdict items (branch `claude/self-evolving-ir-2026-10-22`, now `70aaa56`; was `d5539d8`):**
