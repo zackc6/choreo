@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     outputs:
       branch: ${{ steps.prepare.outputs.branch }}
       round: ${{ steps.prepare.outputs.round }}
@@ -67,6 +68,8 @@ jobs:
       - name: Independent Codex review
         id: review
         if: steps.prepare.outputs.branch != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -83,7 +86,10 @@ jobs:
             Put the verdict items from AGENTS.md "What a batch must say" FIRST. Check the ownership
             table: object to any contract field, Kernel encoding, compiler_ver, or measurement label
             changed outside its owner repo or without recorded agreement. Check that the validation
-            gate was run on the branch as claimed. Spot-check at least two concrete claims; if unable
+            gate was run on the branch: the evidence is the CI run on the reviewed SHA, which you can
+            read with `gh run list -R ${{ github.repository }} --commit ${{ steps.prepare.outputs.branch_sha }} --json name,conclusion,url`
+            (GH_TOKEN is set, read-only). A green gate run on that SHA satisfies the validation
+            requirement; do not ask for logs you cannot see. Spot-check at least two concrete claims; if unable
             to verify, say so and mark the review pending, not agreed.
             Respond with AGREE/OBJECT per disputed point, file paths and concrete corrections, the
             strongest objection to your own reading, and what would settle it. State whether this is

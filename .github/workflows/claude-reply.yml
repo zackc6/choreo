@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
   id-token: write
 
 concurrency:
@@ -63,6 +64,10 @@ jobs:
             2. Think. Engage its position on the merits using the "What a batch must say" items in
                AGENTS.md. Change your position when its argument is better; hold it when not; name
                the strongest objection to your own reading.
+            2b. Cite the gate run. CI runs the validation gate on every claude/* and chatgpt/* push.
+               Find it with `gh run list --commit <branch sha> --json name,conclusion,url` and quote
+               the URL and conclusion in your entry; that is the validation evidence the reviewer
+               needs. If it is red, fix the branch instead of arguing.
             3. Reply. Add one dated entry at the TOP of the Review thread in STATUS.md (newest first),
                headed "**<date> <time> UTC — Claude (GitHub Action)**": verdict items first, then
                agree/object per point with file and line, resolved points marked with commit hashes,
