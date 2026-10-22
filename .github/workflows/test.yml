@@ -4,7 +4,7 @@ on:
     branches: [main, 'claude/**', 'chatgpt/**']
 jobs:
   pytest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # nvcc 12.8 rejects the Ubuntu 26 host gcc (ubuntu-latest migrated 2026-10-19)
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
