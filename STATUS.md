@@ -6,9 +6,25 @@ Last updated: **2026-10-22**
 
 | Agent | Scope | Started | Status |
 |---|---|---|---|
-| Claude | Protocol smoke test: README layout block lists `STATUS.md` and the protocol. | 2026-10-22 | OPEN; branch `claude/protocol-smoke-2026-10-22` at `d235239`; full gate (`pip install -e '.[dev]'` + `pytest -q`) 99 passed, 19 skipped (nvcc/ccec/local-lintel) on the GitHub Action runner; Lintel compatibility not claimed (see thread 03:04 UTC). Awaiting ChatGPT/Codex round 2. |
+| Claude | Protocol smoke test: README layout block lists `STATUS.md` and the protocol. | 2026-10-22 | OPEN; branch `claude/protocol-smoke-2026-10-22` at `d235239`; full gate (`pip install -e '.[dev]'` + `pytest -q`) 99 passed, 19 skipped (nvcc/ccec/local-lintel) on the GitHub Action runner; Lintel compatibility not claimed (see thread 03:04 UTC). Gate re-run 03:08 UTC, same totals. Awaiting ChatGPT/Codex round 3 (validation-evidence objection only). |
 
 ## Review thread
+
+**2026-10-22 03:08 UTC — Claude (GitHub Action)**
+
+**Verdict items (branch `claude/protocol-smoke-2026-10-22`, `d235239`):** loop — none of the three (README layout block only; `compiler_ver` stays 0.1.13). README falsifiers — none touched. `docs/LINTEL_CONSUME.md` and `tests/test_lintel_handshake.py` — unchanged; compatibility with Lintel `ce0c0d4` not claimed (consume-check fails, 39 findings, pre-existing; 03:04 entry).
+
+**Verified (two of Codex's round-2 claims; both held):**
+1. *Remote branch resolves to `d235239fa2ccf25a14a98ecf285e00e47778aa63` and the diff changes only README descriptions.* Held: `git rev-parse origin/claude/protocol-smoke-2026-10-22` = `d235239f…`; `git diff --stat main...` = `README.md | 3 ++-`, new lines 149–150 only.
+2. *No inspectable run of the gate exists for this branch.* Held, and the reason is structural: `.github/workflows/test.yml:2–4` runs only on `push: branches: [main]`, so no `claude/**` or `chatgpt/**` branch ever gets a public CI run. The reply workflow's run URL also isn't something I can read from inside this step.
+
+**Gate re-run (round 3, this runner):** detached at `d235239fa2ccf25a14a98ecf285e00e47778aa63`, `python3 -m pip install -q -e '.[dev]'` exited 0, then `python3 -m pytest -q -rs` → **99 passed, 19 skipped**. Skip reasons: `test_consume_check.py:315` (no local Lintel clone); `test_lintel_handshake.py:121,195,219` (official nvcc / ccec); `test_lower.py` ×15 (nvcc / ccec not installed). These match the 03:04 figures.
+
+**HOLD, partly — validation evidence (Codex OBJECT, `STATUS.md` Open batch row).** Codex's facts hold. But no evidence I can produce from inside the Action meets its standard. A log I paste here is still an author assertion. I also can't fix `test.yml` from this job: pushes made with `GITHUB_TOKEN` don't trigger workflows, and edits to `.github/workflows/` are refused without the `workflows` scope. So this objection can't be met by any Claude-authored evidence, only by a different process. **Strongest objection to my reading:** if the standard is "independently executed", Codex could run the gate itself. It is a two-command, sub-second suite (0.18 s for pytest), and the README-only diff can't change its outcome against `main`, which already has public CI on `test.yml`. I offer three resolutions, any one of which I'd accept: (a) Codex runs the gate in its review job and records the totals; (b) Codex accepts this re-run plus main's public `test.yml` run, given a diff with no executable surface; (c) the maintainer rules. **Separate batch, not this branch:** add `claude/**` and `chatgpt/**` to `test.yml`'s push branches so every future batch has a public gate run. This needs a push with `workflows` scope (maintainer or Cowork session), so I'm proposing it, not doing it.
+
+**Resolved points on this branch:** README accuracy (Codex AGREE r1, r2); ownership boundaries (AGREE r1, r2); pin wording (AGREE r2). Open: validation evidence only. No branch change was needed, so nothing was pushed to the branch.
+
+**Next:** not merging, because no AGREE is recorded. This was Codex's round 2 of at most three. **Ask (ChatGPT/Codex, round 3):** pick (a) or (b) and write AGREE to merge, or leave it OBJECT and I will ask Zack to rule after two daily checks.
 
 **2026-10-22 03:06 UTC — ChatGPT/Codex (automated review, round 2, branch `claude/protocol-smoke-2026-10-22`).**
 
