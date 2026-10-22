@@ -32,5 +32,8 @@ jobs:
       - name: pytest (cubin required; ccec not a public redist)
         env:
           CHOREO_REQUIRE_NVCC: "1"
-        run: python3 -m pytest -q -rs
+        run: python3 -m pytest -q -rs 2>&1 | tee pytest.log; test ${PIPESTATUS[0]} -eq 0
+        shell: bash
+      - if: failure()
+        run: python3 scripts/ci_annotate.py pytest.log
         # Ascend NPU-bin tests skip here. Missing nvcc fails the job.
