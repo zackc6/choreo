@@ -71,11 +71,11 @@ assembly-level KernelEvolve lineage are the evidence.
 | Criterion | (a) Boundary as IR (ATen / C) | (b) ISA as IR (PTX / CCE) | Choreo (schedule) |
 |---|---|---|---|
 | **Performance: reach** | Everything behind the boundary is open — the ceiling is the device, same as (b). | Everything. | The schedule decisions; ISA inside the sink. |
-| **Performance: what the agent can *see* and steer** | Nothing structural beyond what the toolchain reports. The implementation is text (CUDA/Triton/Python); feedback is compiler diagnostics, pass/fail, time. KernelBench-Verified (arXiv 2607.16241v1, single-turn, one H200) reports best geomean 0.88× under a TF32 baseline with hidden tests, and 28 % of the best model's correct kernels raise peak memory; the paper attributes most of the drop to baseline precision, so this shows how little a boundary-level pass/fail verdict explains, not that the boundary caused the gap. | Everything, but the space is unenumerable; most mutations are illegal; no schedule-level admit before run. | Tiles, layouts, roles, barriers, depth — enumerated, admit-checked. |
-| **Extensible from the loop** | Trivially: add an op signature. But that extends the *contract*, not the optimizer; nothing learned about one op transfers to the next except as text in a prompt. | Trivially: any instruction. Nothing is closed, so nothing is *checked*. | Tier-1 variants with evidence (§1.2). |
+| **Performance: what the agent can *see* and steer** | In the baseline workflow (KernelBench-style: one op signature, text implementation, harness verdict), nothing structural beyond what the toolchain and harness report; a stable boundary does not forbid structured tools behind it, it just does not supply them. The implementation is text (CUDA/Triton/Python); feedback is compiler diagnostics, pass/fail, time. KernelBench-Verified (arXiv 2607.16241v1, single-turn, one H200) reports best geomean 0.88× under a TF32 baseline with hidden tests, and 28 % of the best model's correct kernels raise peak memory; the paper attributes most of the drop to baseline precision, so this shows how little a boundary-level pass/fail verdict explains, not that the boundary caused the gap. | Everything, but the space is unenumerable; most mutations are illegal; no schedule-level admit before run. | Tiles, layouts, roles, barriers, depth — enumerated, admit-checked. |
+| **Extensible from the loop** | Trivially: add an op signature. But that extends the *contract*, not the optimizer; nothing learned about one op transfers to the next except as text in a prompt. | Trivially: any instruction. Assemblers and verifiers check syntax, typing, and some resource limits, but the instruction set offers no schedule-level choice list to check against. | Tier-1 variants with evidence (§1.2). |
 | **Compile time** | Full toolchain per candidate; the cheapest reject is a compile error (seconds, line-level). Kernels that compile but are wrong or slow cost a device run. | Assembler only — cheapest toolchain — but semantic correctness is only knowable by running. | Static schedule rejects before any toolchain (target: §2.5; not yet measured). |
 | **Traceable** | Excellent at the boundary (input/output, versioned reference, bit-exact tests). Nothing inside: two implementations of `mm` differ as blobs. | Byte-exact by construction, but a diff of two PTX files does not say *what decision* changed. | `kernel_digest`, `parent_digest`, `mutation` (§3). |
-| **Debuggable** | Only "wrong output at element i" and "slower". No program point. The LLM4IR failure the SPEC names. | Hardware fault at an address; register pressure; no mapping back to intent. | `{where, node, element/thread}`; source map (§4). |
+| **Debuggable** | In the baseline workflow, "wrong output at element i" and "slower", plus source-localized compiler diagnostics; no diagnostic tied to a schedule decision. The LLM4IR failure the SPEC names. | Hardware fault at an address; register pressure; no mapping back to intent. | `{where, node, element/thread}`; source map (§4). |
 | **Stable, tested** | **Yes — this is its whole value.** | The ISA is stable per generation; the *programs* are not testable before execution. | Stable at Tier 0; Tier 1 grows under the regression pair (compatibility) and a separate holdout (generalization, §1.2 rule 3). |
 
 **Verdict.** Neither extreme matches the four goals *as the mutation surface*, and for the
@@ -98,8 +98,9 @@ contract. The proposal is therefore to state the split explicitly rather than pi
   the agent editing PTX beats the schedule at a matched budget (AsmEvo-style, on this
   contract), that is the survey falsifier firing and the schedule tier should shrink, not
   grow a PTX escape hatch.
-- **The schedule is the *mutation surface*** between them, and it is the only one of the
-  three that can be both enumerated and localized.
+- **The schedule is the *mutation surface*** between them. The narrower claim, not an
+  impossibility for the other two: Choreo proposes explicit, enumerated schedule choices and
+  diagnostics tied to schedule nodes, which neither baseline workflow supplies by default.
 
 A corollary for the test corpus: every `examples/*.json` kernel should be paired with its
 boundary (`*.tensors.json` / `*.expected.json`) so the ATen-shaped contract is literally what
