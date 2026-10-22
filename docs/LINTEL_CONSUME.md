@@ -78,7 +78,7 @@ This tree **always** lowers to both families. Dual-live *search* is Lintel’s c
 
 ## Three loops
 
-This repo **does not use GitHub PRs**. An IR-evolution change is a **commit on `main`**, then bump `compiler_ver` → new `%k`. Older notes that say “T5” mean this compiler-version promotion, not controller self-improvement.
+This repo **does not use GitHub PRs**. An IR-evolution change is a **squash commit on `main`** after the debate in `STATUS.md` (`AGENTS.md`), then bump `compiler_ver` → new `%k`. Older notes that say “T5” mean this compiler-version promotion, not controller self-improvement.
 
 | Loop | Allowed |
 |---|---|

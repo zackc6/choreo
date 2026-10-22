@@ -1,0 +1,3 @@
+# Instructions for Claude
+
+Read `AGENTS.md` first (what this repo owns, the validation gate, the four-repo protocol), then `goals/agentic-compiler.md` and `skills/choreo-lintel-codesign/SKILL.md`. Before starting a batch, read the **Open batch** table and the **Review thread** at the top of `STATUS.md`; if another agent has claimed overlapping scope, review its work instead of editing the same files. Claim your scope there before editing and clear it when the batch is pushed. Content batches go on a `claude/<topic>-<date>` branch, validated there, argued in the thread, and squash-merged to `main` only on agreement. Thread entries, Open-batch rows, and pure fact fixes may go to `main` directly. Sign commits with your agent name.

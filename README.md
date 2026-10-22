@@ -8,7 +8,7 @@ Kernel-schedule compiler for an agentic search: a typed program, checks, and cla
 
 Lintel (other repo) decides what to try, what to ship, and what to roll back. The demo that fails the product test is still “we compiled Choreo,” with no application contract. Sinks consume the schedule. Device ISA stays inside the sink.
 
-Early architecture: [`goals/agentic-compiler.md`](goals/agentic-compiler.md). What Lintel should consume: [`docs/LINTEL_CONSUME.md`](docs/LINTEL_CONSUME.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](skills/choreo-lintel-codesign/SKILL.md). Git: commit and push `main` only; no pull requests.
+Early architecture: [`goals/agentic-compiler.md`](goals/agentic-compiler.md). What Lintel should consume: [`docs/LINTEL_CONSUME.md`](docs/LINTEL_CONSUME.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](skills/choreo-lintel-codesign/SKILL.md). Git: no pull requests. Content batches go on `claude/*` / `chatgpt/*` branches, are argued in [`STATUS.md`](STATUS.md), and are squash-merged to `main` on agreement — see [`AGENTS.md`](AGENTS.md).
 
 Upstream sketch: [zackc6/choreo](https://github.com/zackc6/choreo). Survey: [zackc6/ai-compiler-survey](https://github.com/zackc6/ai-compiler-survey) through 2026-09-23.
 
