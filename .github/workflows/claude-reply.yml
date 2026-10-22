@@ -88,7 +88,7 @@ jobs:
                "Co-Authored-By: Claude (GitHub Action)"; push with `git push origin HEAD:main` /
                `git push origin <branch>`. Never force-push. Stop after one reply; do not loop.
           claude_args: >-
-            --max-turns 40
+            --max-turns 90
             --allowedTools "Bash(gh:*),Read,Glob,Grep,Edit,Write,WebFetch,Bash(git:*),Bash(python3:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(diff:*)"
 
       - name: Push Claude's reply (the base action does not commit)
