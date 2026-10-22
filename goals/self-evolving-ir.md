@@ -76,7 +76,7 @@ assembly-level KernelEvolve lineage are the evidence.
 | **Compile time** | Full toolchain per candidate; the cheapest reject is a compile error (seconds, line-level). Kernels that compile but are wrong or slow cost a device run. | Assembler only — cheapest toolchain — but semantic correctness is only knowable by running. | Static schedule rejects before any toolchain (target: §2.5; not yet measured). |
 | **Traceable** | Excellent at the boundary (input/output, versioned reference, bit-exact tests). Nothing inside: two implementations of `mm` differ as blobs. | Byte-exact by construction, but a diff of two PTX files does not say *what decision* changed. | `kernel_digest`, `parent_digest`, `mutation` (§3). |
 | **Debuggable** | Only "wrong output at element i" and "slower". No program point. The LLM4IR failure the SPEC names. | Hardware fault at an address; register pressure; no mapping back to intent. | `{where, node, element/thread}`; source map (§4). |
-| **Stable, tested** | **Yes — this is its whole value.** | The ISA is stable per generation; the *programs* are not testable before execution. | Stable at Tier 0; Tier 1 grows under the regression pair. |
+| **Stable, tested** | **Yes — this is its whole value.** | The ISA is stable per generation; the *programs* are not testable before execution. | Stable at Tier 0; Tier 1 grows under the regression pair (compatibility) and a separate holdout (generalization, §1.2 rule 3). |
 
 **Verdict.** Neither extreme matches the four goals *as the mutation surface*, and for the
 same reason from opposite ends: (a) cannot localize or steer because it hides structure
@@ -116,7 +116,7 @@ three tiers, and the tier decides who may add it and what a commit must carry.
 |---|---|---|---|---|
 | **0 — core sorts** | `Kernel, Buffer, Layout, Partition, Copy, Mma, Reduce, Barrier, Pipeline, Yield`; spaces; roles | nobody in year 1; a sort change is a spec bump with a migration | spec section, check, both sinks, migration of the regression pair | the grammar |
 | **1 — enumerated variants** | `Copy.variant ∈ {plain, cp.async, tma, multicast}`, `Mma.variant ∈ {mma.sync, wgmma, tcgen05, cube.mmad}`, `Barrier.kind ∈ {block, mbarrier, pipe}` | **IR evolution commit**, triggered by evidence (§3.3) | one enum value + its W/L/S rule + a lowering in *each* sink (or an explicit "unsupported on family X" finding) | a closed choice list in `propose`; picking a variant is an ordinary mutation |
-| **2 — knobs** | `attrs` entries a sink reads (`num_stages`, swizzle, cluster dims) | registered per sink; unregistered keys are ignored and flagged `W` warning | a registry row: name, type, range, which sink consumes it | a typed knob with a range |
+| **2 — knobs** | `attrs` entries a sink reads (`num_stages`, swizzle, cluster dims) | registered per sink; an unregistered or ill-typed key is a `W` **error** before any measurement | a registry row: name, type, range, which sink consumes it | a typed knob with a range |
 
 Rules that keep this from becoming a language union:
 
@@ -128,12 +128,32 @@ Rules that keep this from becoming a language union:
    mechanism actually emitted. A warning never implies the requested mechanism ran. Device
    ISA still stays inside the sink; the variant names the *mechanism*, the sink owns the
    instruction.
-2. **No free text.** `attrs` values are typed by the registry; an unregistered key is a
-   warning the agent can read, never something the sink interprets.
+2. **No free text, and no silent knobs.** `attrs` values are typed by the registry. An
+   unregistered or ill-typed key is a `W` *error* with the key named, raised before any
+   toolchain or device run, so a candidate is never measured as if a mistyped knob took effect.
+   (Today an ill-typed `num_stages` reaches `int(raw)` in `knobs.py` `_int_attr` and raises an
+   unlocalized `ValueError`.) Compatibility: `attrs` already carries keys that are not knobs —
+   the Lintel pin fields `graph_hash`, `hw_id`, `policy_id` (`pin.py`), `enum_id`
+   (`jsonio.py`), and the Triton sidecar `num_warps` / `num_stages`, which must not shrink the
+   CUDA/CCE staging (`knobs.py`). The registry lists them as **pass-through metadata** (typed,
+   never read as a sink knob) with no rename, so existing kernels and the Lintel handshake
+   admit unchanged. A new Lintel-owned key reaches Choreo with a registry row in the same
+   Choreo commit that first accepts it. The pin records an **effective-configuration
+   digest** — the sha256 of the knob values the sink actually consumed — so a performance
+   claim names what ran, not what was asked for.
 3. **A Tier-1 commit is admitted by the same gates as a kernel.** It ships with a kernel in
    `examples/` that uses it, a fail case in `examples/fails/` that localizes its new check,
-   and `copy` / `gemm_tile` unchanged and passing. That is survey §5.2 step 6's "separate
-   corpus" made concrete: the regression pair is the held-out set.
+   and `copy` / `gemm_tile` unchanged and passing. The regression pair is a **compatibility
+   regression, not a held-out set**: every Tier-1 change is designed and iterated against it,
+   so passing it shows nothing broke, not that the change generalizes. Survey §5.2 step 6's
+   "separate corpus" needs a separately versioned **holdout** of kernels and workloads that no
+   Tier-1 proposal cites or tunes on, held outside the proposal's own commit. It does not exist
+   yet (`knobs.py` `YEAR1_KERNELS = {copy, gemm_tile}`). Until it does, a Tier-1 commit may
+   claim compatibility and, for #4/#5, a measured local delta, but **no** claim of
+   schedule-level benefit or generalization. Such a claim also needs measured comparisons, at
+   a matched search and compile budget, against autotuned Triton, raw CUDA, and a simple
+   structured search (random or grid) over the same knobs. Triton reaching 62–101 % of cuBLAS
+   with autotuning alone (§1.1) is the baseline to beat, not an untuned backend.
 4. **The agent proposes variants, never defines them.** The feedback loop's output for the IR
    is a *counted request* (§3.3), not a patch to `ast.py`.
 
@@ -220,7 +240,14 @@ carries `compiler_ver`, `sink_id`, `source_sha256`, `artifact_sha256`. What is m
    are the second input to the ledger.
 5. **Versioned replay.** `pin.json` + `kernel.json` + the `choreoir` version named in
    `compiler_ver` must reproduce `source_sha256` byte for byte. Add a `replay` CLI that
-   asserts it; a failed replay is a sink nondeterminism bug and blocks promotion.
+   asserts it; a failed source replay is a sink nondeterminism bug and blocks promotion.
+   Source equality does not attest the binary. Today the pin records only the toolchain *path*
+   (`lower.py` sets `toolchain = nvcc_path`), not its version, `-arch`, or flags. Replay
+   therefore also records and compares the binary cache context of §2.2 (toolchain version,
+   arch, full flag list, include digest). It checks `artifact_sha256` only when that context
+   matches, and otherwise reports `toolchain context differs` rather than passing. The fixture
+   covers both halves: a source mismatch fails, and a changed flag is reported, never treated
+   as equivalent.
 
 ## 4. Debuggability: every emitted line knows its op
 
@@ -232,9 +259,16 @@ first mismatching element. What is missing is the path *back* from the sink and 
    `{line_range → op_id}` for the `.cu`/`.cce`. An `nvcc`/`ccec` diagnostic at line *n*
    becomes a finding at `node=cA`, same shape as W/L/S/V, instead of a stderr dump — which is
    exactly the LLM4IR failure the SPEC says to avoid.
-2. **Device failures map the same way.** A launch that faults or a timing run whose output
-   mismatches the interpreter is reported as `V` with `node` from the source map and the
-   element from the device-side check. (`DeviceMeasurer` in agentic-compiler is the place.)
+2. **Device failures map best-effort, and say so.** A source map localizes *host* toolchain
+   diagnostics (item 1). It does not localize device failures in general: kernel launches are
+   asynchronous, the optimized instruction stream does not keep line boundaries, and a
+   mismatching output element shows which buffer is wrong, not which op wrote the bad value.
+   A device fault or a timing-run mismatch against the interpreter is therefore reported as
+   `V` at kernel level, with an optional `suspect` field: `{node, confidence, provenance}`,
+   where provenance names the evidence (e.g. `"last writer of yielded buffer"`, `"sanitizer
+   line → source map"`). Without such evidence the node is `unknown`. A suspect is never
+   written into `node`: a `V` finding with `node` set means the interpreter localized it.
+   (`DeviceMeasurer` in agentic-compiler is the place.)
 3. **`explain` printer.** A human and agent-readable timeline per partition: for each stage,
    which partition does what, who waits on whom, which buffers are live. Derived purely from
    the AST; it is how a reviewer reads a kernel without reading CUDA.
@@ -247,14 +281,16 @@ first mismatching element. What is missing is the path *back* from the sink and 
 ## 5. Order of commits, and the falsifier for each
 
 Each row is one IR-evolution commit on this `main`, debated in `STATUS.md`, with a
-`compiler_ver` bump and the regression pair passing. Nothing here is a year-1 promise. Rows
-that touch Lintel's envelope or events (#1's `cost` / `parent_digest` / `mutation`, #6's hit
-rates on the measure event) wait for the Lintel batch and the agentic-compiler submodule
-bump (§2 ownership note); their Choreo-internal halves may land first.
+`compiler_ver` bump and the regression pair passing (a compatibility check, §1.2 rule 3, not
+evidence of generalization). Nothing here is a year-1 promise. Rows that touch Lintel's
+envelope or events (#1b, #6's hit rates on the measure event) wait for the Lintel batch and
+the agentic-compiler submodule bump (§2 ownership note); #1a and the Choreo-internal half of
+#6 may land first.
 
 | # | Commit | Criterion served | What would show it was wrong |
 |---|---|---|---|
-| 1 | Per-gate `cost` on the envelope; `kernel_digest` / `parent_digest` / `mutation` stamps; `replay` CLI | 2, 3 | Accounting overhead itself exceeds 10 % of W/L/S/V time; or replay fails on the regression pair (sink is nondeterministic today). |
+| 1a | *Choreo-local, no outside agreement:* per-gate timing reported by `check`/`lower`; `kernel_digest`; `replay` CLI with source and toolchain-context halves (§3.5) | 2, 3 | Timing overhead itself exceeds 10 % of W/L/S/V time; or source replay fails on the regression pair (sink is nondeterministic today). |
+| 1b | *Contingent on a Lintel batch and an agentic-compiler submodule bump:* `cost` on the envelope; `parent_digest` / `mutation` on session events | 2, 3 | Lintel declines the fields, or the walk cannot carry them without a consume-contract break; then 1a stays Choreo-local output only. |
 | 2 | `source_map.json` sidecar; toolchain diagnostics mapped to `node`; `explain` and `diff` CLIs | 4 | Mapped diagnostics are wrong for > 1 in 20 injected errors on the regression pair. |
 | 3 | Tier-1 enums `Copy.variant`, `Mma.variant`, `Barrier.kind` with today's behavior as `plain`; knob registry; `unexpressible` finding | 1, 3 | Agentic-compiler's walk cannot run unchanged against the bumped pin (the enum broke the consume contract). |
 | 4 | `cp.async` + `mbarrier` on NVIDIA; Ascend declares unsupported | 1 | Measured on a device: `Pipeline.depth=3` with `cp.async` is not faster than `plain` on `gemm_tile` at a realistic tile. Then the variant is noise and should be removed. |
@@ -285,5 +321,7 @@ largest `unexpressible` or `{where}` count, not the most interesting one.
    that names the emitted mechanism (§3.4), because a slow but correct fallback is still a
    frozen artifact; revisit when #4 lands and the fallback is a measured loss.
 3. Does Tier 2 need a registry at all, or is "unregistered keys are ignored and warned" enough?
-   Position: the registry is what makes a knob *typed* for the proposer; without it the agent
-   is back to guessing strings.
+   Position (revised after ChatGPT 09:45): the registry is required, and an unregistered or
+   ill-typed key is an error before measurement (§1.2 rule 2). Ignore-and-warn lets a typo be
+   measured as if it took effect. The existing pin and sidecar keys are registered as
+   pass-through metadata so nothing that admits today stops admitting.
