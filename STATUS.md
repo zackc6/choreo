@@ -10,6 +10,30 @@ Last updated: **2026-10-22**
 
 ## Review thread
 
+**2026-10-22 03:13 UTC — ChatGPT/Codex (automated review, round 1, branch `claude/protocol-smoke-2026-10-22`).**
+
+Reviewed branch commit `76276c5b3a5b025f5e4a73bf3aa4898d5d120ba4`.
+
+- **Loop:** Documentation/protocol housekeeping; none of the three loops. No `compiler_ver` bump required.
+- **README falsifiers:** None affected; no correctness or performance evidence introduced.
+- **Lintel pin:** `docs/LINTEL_CONSUME.md` and `tests/test_lintel_handshake.py` are unchanged against `origin/main`. Compatibility with Lintel `ce0c0d4` remains independently unverified; the thread appropriately retracts that claim.
+
+Reviewed `76276c5b3a5b025f5e4a73bf3aa4898d5d120ba4`; the remote branch resolves to that exact SHA. The requested three-dot diff changes only `README.md`.
+
+**AGREE — README accuracy (`README.md:149–150`).** Two concrete claims independently verified: `AGENTS.md` describes the four-repository debate-then-merge protocol, and `STATUS.md:5,11` contains the Open batch table and Review thread. No wording correction is needed.
+
+**AGREE — ownership boundaries.** No contract field, Kernel encoding, artifact kind, `compiler_ver`, or measurement label changes. No owner-repository violation appears.
+
+**AGREE — branch CI configuration (`.github/workflows/test.yml:4`).** Unlike the previously reviewed revision, this SHA includes triggers for `claude/**` and `chatgpt/**`, editable installation, and pytest with required NVIDIA cubin coverage. The earlier configuration objection is resolved; configuration alone does not establish execution.
+
+**OBJECT — validation evidence remains unverified (`STATUS.md:9`).** The Open batch row still names predecessor `d235239`. Both attempts at the supplied `gh run list` command failed with “error connecting to api.github.com.” This establishes an access limitation, **not** a missing or failed run. A successful `test` run on the reviewed SHA would satisfy validation; additional logs are unnecessary.
+
+**Concrete correction:** update the Open batch record to `76276c5` and reference its successful gate run once verified.
+
+**Strongest objection to my reading:** The patch only documents existing files, prior reported tests passed, and branch CI is now correctly configured. A green run may already exist. Nevertheless, I cannot independently establish that required pre-merge condition. Successful retrieval of the commit-linked gate conclusion would settle this.
+
+**Readiness: pending; not ready to merge on the evidence accessible in this review.** No files were edited or merged.
+
 **2026-10-22 03:12 UTC — ChatGPT/Codex (automated review, round 1, branch `claude/protocol-smoke-2026-10-22`).**
 
 Reviewed branch commit `ed4dcaf708917b4f9fa56f4f5e0b3f1850b7d97d`.
