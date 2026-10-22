@@ -23,7 +23,8 @@ surface exposes; "compiler owns" is what it hides.
 | **B. Template / layout-algebra libraries** | CUTLASS + CuTe DSL (survey, B), ThunderKittens (survey, B), FlyDSL (survey, B), CuTeGen as the agent on CuTe (survey) | layouts as algebra, warp roles, pipelines, as C++/Python | instruction selection | type/layout errors at compile time; no schedule-level check |
 | **C. Tile languages, compiler picks the schedule** | Triton; cuTile / CUDA Tile (survey, A eval); Pallas → Mosaic (survey, B); Helion (survey, B); TileLang (survey, B) | blocked dataflow, tile sizes, a few knobs | layouts, pipelining, warp roles (TileLang infers layouts; Helion autotunes) | compiler errors; no localized schedule diagnostics |
 | **C′. Tile languages with an explicit lower face** | Gluon (survey, B), TLX (survey, B), TileLang overrides, Triton Tile-IR backend (survey, B) | + explicit layouts, warp-group roles, barriers | lowering only | same as C |
-| **D. Schedule-level IRs with typed decisions** | TensorIR / MetaSchedule (survey), TIRx (survey, B), Cake (survey, A), Ave/Argus (survey, A), Halide and Exo-style scheduling languages, MLIR Transform dialect, Mirage μGraphs (survey, A), **Choreo** | tiles, layouts, roles, sync, pipeline depth, as data | ISA | **yes** — this is the cell's defining property |
+| **D1. Schedule-level IRs, whole schedule as data** | TIRx (survey, B), Cake (survey, A), Ave/Argus (survey, A), Mirage μGraphs (survey, A), **Choreo** | tiles, layouts, roles, sync, pipeline depth, as one complete program | ISA | **yes** — this is the cell's defining property |
+| **D2. Typed transform traces over a stable payload** | Halide schedules, TensorIR / MetaSchedule traces (survey), MLIR Transform dialect + IREE tuning specs, Exo-style rewrites | a sequence of typed transform ops with preconditions; the payload is fixed | the payload's semantics and the ISA | **yes**, per step (precondition failure at an op and handle) and on the result |
 | **E. Narrow spec / knob DSLs** | **μCUTLASS** (new), Helion's autotuner config, Triton `num_warps/num_stages`, MetaSchedule search space | a validated grammar of knobs; 10–20 lines | the whole kernel (a library or a compiler generates it) | yes — the spec is validated before emit |
 | **F. Operator / graph boundary** | ATen, StableHLO, ONNX, Event Tensor (survey) | op signature and shapes | everything below | only output checks |
 | **G. Generic compiler IR as text** | LLVM IR, MLIR text — LLM4IR (survey, A), CIRBench (survey, A), IRCoder, Intent-driven IR (survey) | the whole program as text | — | the compiler's own verifier; no agent-targeted diagnostics |
@@ -38,19 +39,23 @@ Scores are the survey's numbers where they exist; otherwise a qualitative readin
 | B | near-library reach in expert hands; the agent steers through code, not data | full C++ toolchain per candidate | source diff | template errors, famously opaque | CuTeGen (survey): agent on CuTe; cute-dsl digest: "layout algebra; Cake IR is typed schedule with no layout algebra". |
 | C | **62–101 % of cuBLAS (Triton, autotuned per GPU)**; cuTile 52–79 % in 22 lines, slower than autotuned Triton on every tested shape; B200 attention cuTile 1.92× Triton but 53 % of FA2 on sm_120 | compiler + autotune; no cheap static reject | source diff + autotuner log | compiler stderr | cutile-evaluation (survey, A); the referee note flags whether cuTile got tile tuning the Triton baseline did not. |
 | C′ | restores the decisions C hides when Blackwell-class kernels "broke Triton's promise" | same as C | same | same | triton-gluon, tlx (survey, B): "a lower face instead of abandoning the compiler". |
-| D | the decisions that separate 60 % from 90 % are *data*; library-class numbers on B200 are **expert-authored**, no public agent loop yet | static checks in µs–ms before any toolchain | mutations are field edits | **localized**: Ave thread/element counterexamples; Cake typed rejects; TIRx wellformed/sync/race/value-sim | tirx (survey, B), cake (survey, A), argus (survey, A), mirage (survey, A: structured search + verification, no LLM). |
+| D2 | same decision set as D1, reached by composing primitives; reach is bounded by the primitive set | per-step precondition checks, then the toolchain | the trace is the record | at the failing step and handle | Halide, TensorIR/MetaSchedule, MLIR Transform (non-agentic; MetaSchedule searches traces without an LLM). No agent number in the survey; qualitative reading. |
+| D1 | the decisions that separate 60 % from 90 % are *data*; library-class numbers on B200 are **expert-authored**, no public agent loop yet | static checks in µs–ms before any toolchain | mutations are field edits | **localized**: Ave thread/element counterexamples; Cake typed rejects; TIRx wellformed/sync/race/value-sim | tirx (survey, B), cake (survey, A), argus (survey, A), mirage (survey, A: structured search + verification, no LLM). |
 | E | **0.40× → 1.27× geomean over PyTorch for the same model (GPT-5-mini), raw code → μCUTLASS; 1.56× with SOL guidance; 2.07× with GPT-5**, 59 KernelBench problems, one H100 | spec validated, then CUTLASS C++ build | spec diff (10–20 lines) | spec validation errors; SOL integrity check catches >10 %-faster-than-light results | μCUTLASS (new, not yet in survey, arXiv 2603.29010, NVIDIA). Single GPU; SOL reports generated by an LLM; not general. |
 | F | reach is whatever is behind the op; steer: none | full toolchain + run per candidate | excellent at the boundary, blobs inside | "element i wrong" | KernelBench-Verified (survey): 0.88× geomean under verified single-turn; 28 % of best kernels raise peak memory. |
 | G | negative: **every model's median dynamic speedup on IR rewriting is below `-O3`** (0.66–0.96×); models get CFG edges wrong | compiler verifier | text diff | none targeted | cirbench (survey, A), llm4ir (survey, A). Bounds the "let it write the IR" option. |
 
 Two readings that the table forces, and that `self-evolving-ir.md` must absorb:
 
-1. **The strongest *measured* agent result on this axis is in cell E, not D.** μCUTLASS is a
-   170-line EBNF of knobs over a library; the library owns the schedule. Same model, same
-   budget, raw code 0.40× → spec 1.27×. Cell D has typed admit and localized rejects but no
-   published agent loop with a number (TIRx and Cake numbers are expert-authored). So the
-   honest position is: *closed grammar beats free text* is measured; *schedule-level beats
-   knob-level* is not. Choreo's Tier-2 knob registry (§1.2 of the proposal) is cell E inside
+1. **The one reported agent comparison on this axis with a same-model number is in cell E,
+   not D.** μCUTLASS is a 170-line EBNF of knobs over a library; the library owns the
+   schedule. Same model, raw code 0.40× → spec 1.27×. That comparison favours a constrained
+   CUTLASS-backed spec over raw generation; it changes the grammar *and* the implementation
+   support at once, so how much is grammar and how much is CUTLASS is unresolved. Cell D has
+   typed admit and localized rejects but no published agent loop with a number (TIRx and Cake
+   numbers are expert-authored). So neither *closed grammar beats free text* nor
+   *schedule-level beats knob-level* is isolated by any measurement here; the first has one
+   confounded result in its favour, the second has none. Choreo's Tier-2 knob registry (§1.2 of the proposal) is cell E inside
    cell D, and the first thing to measure is whether Tier 2 alone — knobs over a strong sink —
    gets most of the gain. If it does, the schedule tier is the long tail, and the proposal
    should say so.
@@ -100,12 +105,19 @@ evolves from counted rejects — Cake describes the loop; nobody reports it runn
 1. **Add Tier 2 first, measure it alone.** Reorder §5: the knob registry and `unexpressible`
    finding (row 3) before the lineage stamps (row 1), and add an explicit experiment: the
    enumerated proposer over Tier-2 knobs only versus Tier-1+2, same budget, same sink, on the
-   regression pair. μCUTLASS is the prior that says most of the gain may be in E.
+   regression pair. μCUTLASS is a prior, confounded with library support, that most of the
+   gain may be in E. The mutation-surface experiment (D1 vs D2 vs E) is gate G in
+   `self-evolving-ir.md` §1.1c and §5; this arm runs inside it.
 2. **Cite C′ as corroboration of the decision set**, not of Choreo: layouts, roles, barriers,
    depth are what Gluon/TLX/TileLang-overrides added when inference failed.
-3. **Adopt a SOL-style bound as a gate input.** A roofline lower bound from `Layout` and
-   `Mma` shapes costs nothing and gives the walk (a) a stop rule and (b) an integrity check
-   on any future device number. It is cell-E evidence that transfers directly.
+3. **Consider a SOL-style bound as an advisory report, not a gate.** `Layout` and `Mma`
+   shapes alone do not give a device-time bound. A roofline estimate needs, in addition, the
+   target's peak throughput per dtype and bandwidth per memory level (a per-`hw_id` table),
+   operation and traffic counts derived from the kernel, a stated cache assumption, and the
+   timing scope it bounds (kernel only, excluding launch). Choreo can emit that estimate with
+   its inputs listed; it stays advisory until checked against measured runs. Whether the walk
+   stops on it is Lintel's stop policy, and a device number faster than the estimate is
+   flagged for review, never rejected as incorrect, because the estimate is approximate.
 4. **Keep the schedule tier's burden of proof where the table puts it**: an autotuned
    Triton baseline, not an untuned one (the Claude-Action correction in the thread), and no
    claim that cell D beats E until the Tier-2-only arm has run.

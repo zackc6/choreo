@@ -51,9 +51,12 @@ position, not a result:
 | **Schedule level** (Choreo) | tiles + layouts + roles + barriers + pipeline depth | *hypothesis, not measured here:* the decisions that separate library-level from backend-default kernels — who loads, who computes, how deep the pipeline, which layout | the ISA (inside the sink) | `{where, node, element/thread}` |
 | ISA / device-source level | PTX text; CCE source (C-like device source, not itself ISA) | everything | nothing hidden, but the space is unenumerable and most of it is illegal | assembler/compiler diagnostics for syntax and typing; no structured schedule diagnostic; semantic errors surface at run time |
 
-Choreo sits in the middle cell on purpose: it exposes exactly the decisions whose absence
-caps Triton-level kernels below the library, and hides the ones whose exposure makes the
-search space unenumerable. **This is the claim the survey says we must test, not assume**:
+Choreo sits in the middle cell on purpose: it exposes as data the decisions that stock
+Triton hides (layouts, roles, barriers, depth), and hides the ones whose exposure makes the
+search space unenumerable. It is not alone in exposing them: Gluon, TLX, CuTe and TIRx expose
+the same decisions as code ([`ir-landscape.md`](ir-landscape.md) cells B, C′, D), so reach is
+not Choreo's distinguishing property; enumeration and node-localized admit are, and those
+are what the comparison must measure. **This is the claim the survey says we must test, not assume**:
 Choreo's README already carries the falsifier (raw CUDA/PTX/Triton matches it under a
 matched budget). Nothing in this doc moves that; it says how to make the middle cell *grow*
 without sliding into the third.
@@ -110,6 +113,48 @@ A corollary for the test corpus: every `examples/*.json` kernel should be paired
 boundary (`*.tensors.json` / `*.expected.json`) so the ATen-shaped contract is literally what
 the regression pair is tested against — today only some are. That is a Tier-0 hygiene
 commit, no `compiler_ver` bump.
+
+### 1.1c The mutation surface: whole-Kernel replacement or a typed transform trace
+
+Cell D holds two different mutation surfaces ([`ir-landscape.md`](ir-landscape.md) D1/D2).
+Choreo today is D1: the agent submits a complete `Kernel`, and the `mutation` record (§3.2)
+is a log of what differed, not something that executes or is checked. D2 is the Halide /
+TensorIR-MetaSchedule / MLIR Transform / Exo line: a stable payload plus a sequence of typed
+transform ops (`tile`, `split`, `pipeline(depth)`, `set_layout`, `specialize_roles`), each with
+preconditions that fail at the op and its handle, replayed by re-applying the trace. This
+section does not fix the choice; it says how to decide.
+
+| Criterion | D1: whole-Kernel replacement (today) | D2: typed transform trace over a stable payload |
+|---|---|---|
+| Mutation locality | the agent re-emits the whole schedule; the diff is computed afterwards | one op per step; patch distance is trace length |
+| Where a reject lands | admit finding on a node of the result (`{where, node}`) | precondition failure at a trace step and handle, before the result exists; then admit on the result |
+| Reach | anything the AST can state, including schedules no primitive sequence produces | what the primitives compose to; a missing primitive is a reach gap (Halide and TVM grew their primitive sets for this reason) |
+| Replay / provenance | `kernel_digest` + `parent_digest`; *which decision* changed is inferred from a diff | the trace is the provenance; its meaning depends on primitive semantics staying versioned with `compiler_ver` |
+| Check cost | one admit of the whole Kernel | per-step precondition checks plus admit of the result |
+| Tier-1 extension cost | an enum value plus a sink case | an enum value, a primitive with preconditions, and its ordering/interaction rules |
+| Agent evidence | none published for this cell (landscape §2, row D1) | MetaSchedule traces are searched by non-LLM search; no LLM-agent loop with numbers in the survey |
+
+The two do not exclude each other: a trace can be applied to produce a `Kernel`, so the Kernel
+encoding, admit, and sinks stay unchanged and D2 becomes a surface above them. Ownership
+follows where the steps are checked: a trace kept in Lintel's proposer is controller work;
+a Choreo `apply` that validates trace steps is an IR-evolution commit with a `compiler_ver`
+bump.
+
+**Decision experiment (gate G in §5, before #4).** Same frozen contract (the regression
+pair, plus the holdout once it exists, §1.2 rule 3), same model, equal token, evaluation and
+wall-clock budgets. Arms: (1) whole-Kernel edits; (2) typed transform ops over the same
+payload, applied to a Kernel; (3) parameter-only structured search (random/grid over the
+same knobs); (4) autotuned Triton and Gluon outside Choreo. Report valid-candidate rate,
+how often a localized reject was acted on in the next candidate, best result (device time
+with `measured: true`, or correctness-only and labelled so when no device is available),
+total search cost, and holdout transfer. Reading: if (2) matches (1)'s best result with a
+higher valid rate, the mutation surface becomes the trace and §3.2's `mutation` *is* the
+trace; if (3) matches both, the schedule tier is not earning its cost at this corpus size
+(landscape §2 reading 1). What would show the current position wrong: (1) is no better than
+(2) on both valid rate and best result. On a two-kernel corpus the experiment has little
+power, so "inconclusive" is a recorded outcome; it means the surface stays unlocked,
+#4 may land on its own device falsifier, and no further Tier-1 variant lands until G is re-run
+on a larger corpus.
 
 ### 1.2 Extension from inside the loop: three tiers, two of them closed to the agent
 
@@ -298,6 +343,7 @@ the agentic-compiler submodule bump (§2 ownership note); #1a and the Choreo-int
 | 1b | *Contingent on a Lintel batch and an agentic-compiler submodule bump:* `cost` on the envelope; `parent_digest` / `mutation` on session events | 2, 3 | Lintel declines the fields, or the walk cannot carry them without a consume-contract break; then 1a stays Choreo-local output only. |
 | 2 | `source_map.json` sidecar; toolchain diagnostics mapped to `node`; `explain` and `diff` CLIs | 4 | Mapped diagnostics are wrong for > 1 in 20 injected errors on the regression pair. |
 | 3 | Tier-1 enums `Copy.variant`, `Mma.variant`, `Barrier.kind` with today's behavior as `plain`; knob registry; `unexpressible` finding | 1, 3 | Agentic-compiler's walk cannot run unchanged against the bumped pin (the enum broke the consume contract). |
+| G | *Decision gate, not a commit:* the §1.1c mutation-surface experiment (whole-Kernel vs transform trace vs knob-only structured search vs autotuned Triton/Gluon) and the landscape's Tier-2-alone arm, run and recorded in the thread before #4 | 1, 3 | The outcome is recorded as decided or inconclusive; if inconclusive, #4 may land but no later Tier-1 variant does until G is re-run on a larger corpus. |
 | 4 | `cp.async` + `mbarrier` on NVIDIA; Ascend declares unsupported | 1 | Measured on a device: `Pipeline.depth=3` with `cp.async` is not faster than `plain` on `gemm_tile` at a realistic tile. Then the variant is noise and should be removed. |
 | 5 | `mma.sync` as the instruction | 1 | Local implementation threshold: GEMM tile reaches < 50 % of cuBLAS at matched shape; then this lowering has not earned its cost. This does **not** fire the README falsifier, which needs the matched-budget comparison against raw CUDA/PTX/Triton; only that experiment goes to the survey. |
 | 6 | Stage caches with hit rates on the measure event | 2 | Hit rate < 20 % over a 100-candidate walk; caching is then complexity without payback. |
