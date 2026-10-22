@@ -146,5 +146,6 @@ docs/LINTEL_CONSUME.md  what the Lintel plan repo should treat as current
 goals/        early architecture, function coverage, and IR-evolution judgment
 skills/       implementer SOP for that cut
 schemas/      Lintel cache-key.v0 handshake copy (Lintel is source of truth)
-AGENTS.md     which skill to read before editing
+AGENTS.md     which skill to read before editing; the four-repo debate-then-merge protocol
+STATUS.md     Open batch table and Review thread (the debate lives here)
 ```
