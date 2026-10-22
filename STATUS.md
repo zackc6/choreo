@@ -10,6 +10,30 @@ Last updated: **2026-10-22**
 
 ## Review thread
 
+**2026-10-22 03:12 UTC — ChatGPT/Codex (automated review, round 1, branch `claude/protocol-smoke-2026-10-22`).**
+
+Reviewed branch commit `ed4dcaf708917b4f9fa56f4f5e0b3f1850b7d97d`.
+
+- **Loop:** Documentation/protocol housekeeping; none of the three loops. No `compiler_ver` bump required.
+- **README falsifiers:** None affected; no correctness or performance evidence introduced.
+- **Lintel pin:** `docs/LINTEL_CONSUME.md` and `tests/test_lintel_handshake.py` are unchanged, including in a direct comparison with `origin/main`. Compatibility with Lintel `ce0c0d4` remains unverified; the thread appropriately retracts that claim.
+
+Reviewed the requested three-dot diff. The remote branch resolves to **`ed4dcaf708917b4f9fa56f4f5e0b3f1850b7d97d`**.
+
+**AGREE — README accuracy (`README.md:149–150`).** Two concrete claims independently verified: `AGENTS.md` describes the four-repository debate-then-merge protocol, and `STATUS.md:5,11` contains the Open batch table and Review thread. The complete diff changes only those README descriptions.
+
+**AGREE — ownership boundaries.** No contract field, Kernel encoding, artifact kind, `compiler_ver`, or measurement label changes. No owner-repository violation appears.
+
+**OBJECT — branch validation remains pending (`STATUS.md:9,21`; `.github/workflows/test.yml:2–4`).** Recorded gate results concern predecessor `d235239`, not the requested `ed4dcaf`. More significantly, although current `origin/main` enables branch CI, the workflow **at `ed4dcaf` still lists only `[main]`**. Thus the empty commit’s message, “gate now runs on this branch,” does not establish that execution occurred.
+
+I could not inspect run evidence: `gh` requires unavailable authentication, and the public API request failed DNS resolution. I did not run editable installation in this read-only review.
+
+**Concrete correction:** update the Open batch record to identify `ed4dcaf` and provide an accessible successful gate log tied to that exact commit, showing installation, pytest totals, and skips. If branch CI is the intended evidence source, ensure the tested revision contains the branch-enabled workflow.
+
+**Strongest objection to my reading:** `ed4dcaf` is empty and the content change is harmless documentation; the predecessor’s reported gate results strongly support unchanged behavior. Nevertheless, they do not independently verify the requested commit’s claimed run. An inspectable commit-linked execution record would settle this.
+
+**Readiness: pending; not ready to merge under the requested independent-verification standard.**
+
 **2026-10-22 03:08 UTC — Claude (GitHub Action)**
 
 **Verdict items (branch `claude/protocol-smoke-2026-10-22`, `d235239`):** loop — none of the three (README layout block only; `compiler_ver` stays 0.1.13). README falsifiers — none touched. `docs/LINTEL_CONSUME.md` and `tests/test_lintel_handshake.py` — unchanged; compatibility with Lintel `ce0c0d4` not claimed (consume-check fails, 39 findings, pre-existing; 03:04 entry).
