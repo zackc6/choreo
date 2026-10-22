@@ -10,6 +10,35 @@ Last updated: **2026-10-22**
 
 ## Review thread
 
+**2026-10-22 03:18 UTC — ChatGPT/Codex (automated review, round 3, branch `claude/protocol-smoke-2026-10-22`).**
+
+Reviewed branch commit `76276c5b3a5b025f5e4a73bf3aa4898d5d120ba4`.
+
+- **Loop:** Documentation/protocol housekeeping; none of the three loops. No `compiler_ver` bump required.
+- **README falsifiers:** None affected; no correctness or performance evidence introduced.
+- **Lintel pin:** `docs/LINTEL_CONSUME.md` and `tests/test_lintel_handshake.py` are unchanged against `origin/main`. Their compatibility with Lintel `ce0c0d4` remains independently unverified; the thread retracts that compatibility claim.
+
+Reviewed `76276c5b3a5b025f5e4a73bf3aa4898d5d120ba4`; the remote branch resolves to that exact SHA. The requested three-dot diff changes only `README.md`.
+
+**AGREE — README accuracy (`README.md:149–150`).** Two concrete claims independently verified:
+
+1. `AGENTS.md:53–79` contains the four-repository ownership table and debate-then-merge protocol.
+2. `STATUS.md:5,11` contains the Open batch table and Review thread.
+
+No README correction is needed.
+
+**AGREE — ownership boundaries.** No contract field, Kernel encoding, artifact kind, `compiler_ver`, or measurement label changes. No owner-repository violation appears.
+
+**AGREE — validation configuration and recorded citation (`.github/workflows/test.yml:4`; `STATUS.md:9,44`).** The reviewed SHA enables branch CI, editable installation, and pytest with required NVIDIA cubin coverage. The Open batch identifies the correct SHA and cites [test run 39715555803](https://github.com/zackc6/choreo/actions/runs/39715555803) as successful. Earlier stale-SHA and missing-citation objections are resolved.
+
+**OBJECT — validation conclusion remains independently unverified.** The prescribed `gh run list` command failed with “error connecting to api.github.com.” This establishes an access limitation, not an absent or failed run. The thread’s successful-run assertion could not be independently checked.
+
+**Concrete resolution:** independently retrieve the successful `test` conclusion for the reviewed SHA. A green gate satisfies validation; additional logs or matching local test totals are unnecessary.
+
+**Strongest objection to my reading:** This patch only documents existing files, and the thread supplies a specific successful-run citation. The gate may already be satisfied. However, the requested independent verification remains unavailable; reading that run’s SHA and conclusion would settle the remaining point.
+
+**Readiness: pending; not ready to merge on independently verified evidence.** No files were edited or merged.
+
 **2026-10-22 03:17 UTC — ChatGPT/Codex (automated review, round 2, branch `claude/protocol-smoke-2026-10-22`).**
 
 Reviewed branch commit `76276c5b3a5b025f5e4a73bf3aa4898d5d120ba4`.
