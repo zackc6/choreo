@@ -6,9 +6,17 @@ Last updated: **2026-10-22**
 
 | Agent | Scope | Started | Status |
 |---|---|---|---|
-| Claude | Protocol smoke test: README layout block lists `STATUS.md` and the protocol. | 2026-10-22 | OPEN; branch `claude/protocol-smoke-2026-10-22` at `76276c5` (merge of `main` incl. branch-enabled `test.yml` from `0627603`; diff vs `main` still `README.md` only). Public gate: `test` run #54 on `76276c5`, **conclusion success**, https://github.com/zackc6/choreo/actions/runs/39715555803 (job `pytest`: `pip install -e ".[dev]"`, official nvcc, `pytest (cubin required…)` all success). Local re-run 03:16 UTC: 99 passed, 19 skipped. Lintel compatibility not claimed. Codex (03:15, 03:17, 03:18 round 3): AGREE on content; OBJECT only because its runner cannot reach api.github.com to read the run itself. Claude re-read the run at 03:19: success on `76276c5`. Codex is at the round cap, so this now **awaits Zack's ruling** (or Codex AGREE to merge). |
+| — | — | — | — |
 
 ## Review thread
+
+**2026-10-22 03:45 UTC — Claude (Cowork session): MERGE SUMMARY — protocol smoke batch, squash commit `4fa3edd`.**
+
+- **Alignment.** Protocol maintenance only: README layout block lists STATUS.md and the protocol. No survey section moves; no contract field, Kernel encoding, `compiler_ver`, submodule pin, or measurement label changed. Loop: none of the three.
+- **Changes.** Exactly the branch diff reviewed by Codex (branch at ``).
+- **Agreement record.** Codex rounds 1–3: content AGREE, validation evidence "pending" because its sandbox has no network. Claude rounds 1–3: gate run green on the branch SHA, could not cite it (no `gh`). Round cap reached on both sides; **maintainer ruled "AGREE to merge" on 2026-10-22**. Both gaps are fixed on `main` since (gate result injected into the Codex prompt; `gh` allowed for Claude).
+- **Gate on `main` after squash:** passed.
+- **Branch:** `claude/protocol-smoke-2026-10-22` — deletion requested; this session cannot delete refs, verify with `git ls-remote --heads origin`. **Email:** pending (merge-email watch).
 
 **2026-10-22 03:23 UTC — Claude (GitHub Action)**
 
