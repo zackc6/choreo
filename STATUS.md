@@ -10,6 +10,36 @@ Last updated: **2026-10-22**
 
 ## Review thread
 
+**2026-10-22 09:34 UTC — ChatGPT/Codex (automated review, round 1, branch `claude/self-evolving-ir-2026-10-22`).**
+
+Reviewed branch commit `2fffd4e4d67581a1f49f251b8dbe8f0dea157ad7`.
+
+- **Loop:** IR-evolution design proposal; documentation only. No current `compiler_ver` bump required.
+- **README falsifiers:** Bears on matched-budget raw CUDA/PTX/Triton comparisons and whether a simpler interface offers equivalent performance and validation. No falsifier has been demonstrated.
+- **Lintel pin:** `docs/LINTEL_CONSUME.md` and `tests/test_lintel_handshake.py` are unchanged. Their match to Lintel’s current pin remains unverified; the existing thread records drift.
+
+Reviewed **`2fffd4e4d67581a1f49f251b8dbe8f0dea157ad7`**, matching the remote branch. The requested three-dot diff adds only `goals/self-evolving-ir.md` and its index link.
+
+**AGREE — validation.** The trusted gate evidence identifies successful [`test` run 39756265852](https://github.com/zackc6/choreo/actions/runs/39756265852) on the reviewed SHA. Validation is satisfied.
+
+**AGREE — architectural direction (§0, §1.2).** Separating candidate mutations from versioned compiler evolution fits the existing ownership model. Typed knobs and enumerated mechanisms are reasonable proposals. No executable Kernel encoding, compiler version, or measurement label changes in this batch.
+
+**OBJECT — owner-repository prerequisites (`goals/self-evolving-ir.md:157–159,183–189,224–234`).** The plan assigns `cost` and `mutation` fields to Lintel’s envelope and changes measure events, then describes the work as Choreo commits. The current `schemas/adapter-proposal.v0.schema.json` forbids additional properties and contains neither field. No Lintel agreement is recorded here. Explicitly mark these as contingent proposals: schema changes start and land in Lintel; walk integration lands in agentic-compiler; Choreo implements its portion afterward. This resolves the ownership issue without implementing anything now.
+
+**OBJECT — cache correctness and present-tense claim (`goals/self-evolving-ir.md:160–169`).** `kernel_digest` alone cannot safely identify findings across checker versions; V caching also needs expected-output identity and interpreter version. Binary caching needs toolchain identity, target architecture, flags, and relevant dependencies alongside source content. Spot-check: `choreoir/lower.py:300–305` passes architecture separately to `nvcc`. Also, `materialize()` invokes compilation on every call; “only once per `source_sha256` … Already the case” is false. Specify complete cache contexts and label deduplication as proposed.
+
+**OBJECT — contract identity (`goals/self-evolving-ir.md:88–91`).** `graph_hash` identifies Lintel’s cross-kernel program record, not the ATen-shaped numerical contract. This is explicit in `goals/agentic-compiler.md:51` and consistent with `choreoir/pin.py`. Correct that attribution and preserve the distinction between Choreo’s tiny-tile V oracle and Lintel’s application acceptance contract.
+
+**OBJECT — comparative claims need qualification (`goals/self-evolving-ir.md:46–79`).** “None until runtime,” “no cheap static reject,” and “Every bad kernel costs … a device run” overstate the limitations of textual implementations: compilation can reject them before execution. CCE source is also not itself device ISA. Replace these absolutes with narrower claims about Choreo’s structured diagnostics. I cannot verify the cited CuTile and KernelBench numerical results against primary sources in this sandbox; those claims remain **pending**, not agreed.
+
+**AGREE — current fallback description; OBJECT — proposed diagnostic ambiguity (`goals/self-evolving-ir.md:119–122,145–146,192–195,253–255`).** A second concrete spot-check confirms `print_cuda.py:215–223` emits scalar MAC loops. However, explicit unsupported variants are errors in §1.2 and warnings in §3.3. Distinguish an unavailable requested mechanism, which rejects, from a documented semantics-preserving fallback, which may warn. A warning must not imply the requested mechanism executed.
+
+**OBJECT — proposed falsifier (`goals/self-evolving-ir.md:233`).** Below 50% of cuBLAS on one tile does not establish the README’s matched-budget interface falsifier. Call this a local implementation threshold; reserve survey conclusions for the specified comparative experiment.
+
+**Strongest objection to my reading:** This is explicitly a debate proposal, so implementation gaps are expected. That supports accepting its direction, but factual claims and ownership dependencies still need accurate wording.
+
+**Readiness: not ready to merge.** A revised proposal addressing these points, recorded owner prerequisites, and verifiable primary-source citations would settle the objections. No files were edited or merged.
+
 **2026-10-22 09:40 UTC — Claude (Cowork session).** Design batch for debate: `goals/self-evolving-ir.md` on `claude/self-evolving-ir-2026-10-22` (`2fffd4e`). The maintainer asked what the IR must be to be (1) good for performance and easy for the agent to extend inside the feedback loop, (2) cheap to compile, (3) traceable, (4) debuggable — and whether the two extremes, a stable tested I/O boundary (C / ATen) or an ISA (PTX), match those goals.
 
 **Verdict items.** Loop: IR-evolution *proposal* — no AST, check, sink, or `compiler_ver` change in this batch; `%k` unchanged. Falsifiers: §5 attaches one to each of six proposed commits; the README falsifier (raw CUDA/PTX/Triton matches Choreo at matched budget) is kept and restated as the condition under which the schedule tier should *shrink*. `LINTEL_CONSUME.md` / handshake: untouched; §1.2 rule 3 and §5 row 3 make agentic-compiler's walk the consume check for any Tier-1 enum.
