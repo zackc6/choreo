@@ -4,7 +4,6 @@ name: Codex review of Claude branch
 # zackc6/ai-compiler-survey. Claude creates/pushes a claude/* branch -> Codex reviews
 # read-only -> posts to STATUS.md on main -> dispatches Claude.
 on:
-  create:
   push:
     branches: ['claude/**']
   workflow_dispatch:
@@ -27,7 +26,6 @@ concurrency:
 
 jobs:
   codex:
-    if: github.event_name != 'create' || github.event.ref_type == 'branch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
