@@ -43,9 +43,9 @@ position, not a result:
 
 | Cell | Example | What the agent can reach | What the agent cannot see | Reject quality |
 |---|---|---|---|---|
-| Op/graph level | Triton tiles, CuTile | portable 62–101 % of cuBLAS GEMM without arch tuning (CuTile evaluation, survey Edit 3) | layout, warp roles, pipelining decisions made by the backend | compiler stderr |
-| **Schedule level** (Choreo) | tiles + layouts + roles + barriers + pipeline depth | the decisions that separate 60 % from 90 % on Hopper/Blackwell: who loads, who computes, how deep the pipeline, which layout | the ISA (inside the sink) | `{where, node, element/thread}` |
-| ISA level | PTX / CCE text | everything | nothing hidden, but the space is unenumerable and most of it is illegal | none until runtime |
+| Op/graph level | Triton tiles, cuTile | Triton 62–101 % of cuBLAS GEMM on three Blackwell GPUs without source changes, autotuned per GPU; cuTile 52–79 % (CUDA Tile evaluation, arXiv 2604.23466v2; survey evidence register) | layout, warp roles, pipelining decisions made by the backend | compiler diagnostics (line-level, not schedule-level) |
+| **Schedule level** (Choreo) | tiles + layouts + roles + barriers + pipeline depth | *hypothesis, not measured here:* the decisions that separate library-level from backend-default kernels — who loads, who computes, how deep the pipeline, which layout | the ISA (inside the sink) | `{where, node, element/thread}` |
+| ISA / device-source level | PTX text; CCE source (C-like device source, not itself ISA) | everything | nothing hidden, but the space is unenumerable and most of it is illegal | assembler/compiler diagnostics for syntax and typing; no structured schedule diagnostic; semantic errors surface at run time |
 
 Choreo sits in the middle cell on purpose: it exposes exactly the decisions whose absence
 caps Triton-level kernels below the library, and hides the ones whose exposure makes the
@@ -71,9 +71,9 @@ assembly-level KernelEvolve lineage are the evidence.
 | Criterion | (a) Boundary as IR (ATen / C) | (b) ISA as IR (PTX / CCE) | Choreo (schedule) |
 |---|---|---|---|
 | **Performance: reach** | Everything behind the boundary is open — the ceiling is the device, same as (b). | Everything. | The schedule decisions; ISA inside the sink. |
-| **Performance: what the agent can *see* and steer** | Nothing structural. The implementation is opaque text (CUDA/Triton/Python); feedback is pass/fail + time. The survey's own finding: single-turn verified results fall to 0.88× geomean (KernelBench-Verified), and 28 % of "winning" kernels raise peak memory — the boundary cannot localize *why*. | Everything, but the space is unenumerable; most mutations are illegal; no admit before run. | Tiles, layouts, roles, barriers, depth — enumerated, admit-checked. |
+| **Performance: what the agent can *see* and steer** | Nothing structural beyond what the toolchain reports. The implementation is text (CUDA/Triton/Python); feedback is compiler diagnostics, pass/fail, time. KernelBench-Verified (arXiv 2607.16241v1, single-turn, one H200) reports best geomean 0.88× under a TF32 baseline with hidden tests, and 28 % of the best model's correct kernels raise peak memory; the paper attributes most of the drop to baseline precision, so this shows how little a boundary-level pass/fail verdict explains, not that the boundary caused the gap. | Everything, but the space is unenumerable; most mutations are illegal; no schedule-level admit before run. | Tiles, layouts, roles, barriers, depth — enumerated, admit-checked. |
 | **Extensible from the loop** | Trivially: add an op signature. But that extends the *contract*, not the optimizer; nothing learned about one op transfers to the next except as text in a prompt. | Trivially: any instruction. Nothing is closed, so nothing is *checked*. | Tier-1 variants with evidence (§1.2). |
-| **Compile time** | Full toolchain per candidate; no cheap static reject. Every bad kernel costs an `nvcc` run and a device run. | Assembler only — cheapest toolchain — but correctness is only knowable by running. | µs–ms static rejects before any toolchain. |
+| **Compile time** | Full toolchain per candidate; the cheapest reject is a compile error (seconds, line-level). Kernels that compile but are wrong or slow cost a device run. | Assembler only — cheapest toolchain — but semantic correctness is only knowable by running. | Static schedule rejects before any toolchain (target: §2.5; not yet measured). |
 | **Traceable** | Excellent at the boundary (input/output, versioned reference, bit-exact tests). Nothing inside: two implementations of `mm` differ as blobs. | Byte-exact by construction, but a diff of two PTX files does not say *what decision* changed. | `kernel_digest`, `parent_digest`, `mutation` (§3). |
 | **Debuggable** | Only "wrong output at element i" and "slower". No program point. The LLM4IR failure the SPEC names. | Hardware fault at an address; register pressure; no mapping back to intent. | `{where, node, element/thread}`; source map (§4). |
 | **Stable, tested** | **Yes — this is its whole value.** | The ISA is stable per generation; the *programs* are not testable before execution. | Stable at Tier 0; Tier 1 grows under the regression pair. |
@@ -85,10 +85,14 @@ wrong — it is **already half of this design**. Choreo's `params` + `Yield` + t
 `tensors/expected` V oracle *is* an ATen-style boundary: a frozen, tested input/output
 contract. The proposal is therefore to state the split explicitly rather than pick an end:
 
-- **The stable tested boundary is the *contract*** (what Lintel freezes against, what V checks,
-  what `graph_hash` names). Keep it ATen-shaped: op name, dtypes, shapes, reference. It is
-  the thing that never changes inside a search *and* the thing the ledger counts rejects
-  against. Nothing in §1.2 touches it.
+- **The stable tested boundary is the *contract***. It comes in two layers that must not be
+  conflated. Choreo's layer is the kernel's `params` + `Yield` + the tiny-tile V oracle
+  (`tensors`/`expected`): an ATen-shaped op name, dtypes, shapes, reference. Lintel's layer is
+  the application acceptance contract that a frozen binary must meet. `graph_hash` names
+  neither: it is the digest of Lintel's cross-kernel program record
+  ([`agentic-compiler.md`](agentic-compiler.md) decision-area table; `choreoir/pin.py`). The
+  Choreo layer never changes inside a search and is what the ledger counts rejects against.
+  Nothing in §1.2 touches it.
 - **The ISA is the *sink's* output**, never an input. Tier-1 variants name mechanisms
   (`cp.async`, `wgmma`, `mmad`); the sink chooses the instruction. If a result ever shows that
   the agent editing PTX beats the schedule at a matched budget (AsmEvo-style, on this
@@ -116,9 +120,13 @@ three tiers, and the tier decides who may add it and what a commit must carry.
 
 Rules that keep this from becoming a language union:
 
-1. **A variant exists in both families or declares itself unsupported.** `Mma.variant=wgmma`
-   on `ascend-a2` is a `W` error with `node=m0`, not silence and not a fallback. Device ISA
-   still stays inside the sink; the variant names the *mechanism*, the sink owns the
+1. **A variant exists in both families or declares itself unsupported.** An *explicitly
+   requested* variant the target cannot provide (`Mma.variant=wgmma` on `ascend-a2`) is a `W`
+   **error** with `node=m0`: rejected, never silently lowered to something else. Only
+   `variant=plain` (or an unset variant) may be lowered by a documented semantics-preserving
+   fallback, and that is the `unexpressible` **warning** of §3.4, whose message names the
+   mechanism actually emitted. A warning never implies the requested mechanism ran. Device
+   ISA still stays inside the sink; the variant names the *mechanism*, the sink owns the
    instruction.
 2. **No free text.** `attrs` values are typed by the registry; an unregistered key is a
    warning the agent can read, never something the sink interprets.
@@ -154,20 +162,35 @@ sink printer (milliseconds), the device toolchain (`nvcc`/`ccec`, seconds), and 
 timing (seconds, plus queueing). Survey §4.3 says compile time is *search cost* and must be
 reported, not hidden. Proposal:
 
-1. **Per-gate accounting on the proposal envelope.** `adapter_proposal` gains
-   `cost: {W_ms, L_ms, S_ms, V_ms, sink_ms, toolchain_ms}`; Lintel copies it onto the
-   `measure` event next to `search_cost`. Nothing is optimized until it is measured.
-2. **Stage caches keyed by content, not by `%k`.** `%k` is the *freeze* address and must stay
-   `hash(graph, hw, compiler, adapter, policy)`. Inside a search, three cheaper keys apply:
-   `kernel_digest` (canonical Kernel JSON) → cached findings; `source_sha256` → cached cubin
-   / NPU-bin; `(kernel_digest, tensors_digest)` → cached V result. Hit rates go on the
-   measure event. A reject the search has already seen costs nothing the second time.
+**Ownership note for this section and §3.** Fields on `adapter_proposal` and on session
+events are Lintel's (`schemas/adapter-proposal.v0.schema.json` here is a copy with
+`additionalProperties: false` and has no `cost` or `mutation` field). Every envelope or event
+field below is therefore a **contingent proposal to Lintel**: it starts and lands in Lintel by
+this protocol, the walk integration lands in agentic-compiler as a submodule-bump batch, and
+Choreo implements its side only after both. Choreo-internal items (caches, CLIs, findings,
+`kernel_digest` computed by `check`) need no outside agreement.
+
+1. **Per-gate accounting** *(contingent on Lintel)*. Choreo measures
+   `{W_ms, L_ms, S_ms, V_ms, sink_ms, toolchain_ms}` per candidate; proposed to Lintel as a
+   `cost` object on the envelope, copied onto the `measure` event next to `search_cost`.
+   Nothing is optimized until it is measured.
+2. **Stage caches keyed by full context, not by `%k`** *(proposed; none exists today)*. `%k`
+   is the *freeze* address and stays `hash(graph, hw, compiler, adapter, policy)`. Inside a
+   search, cheaper keys apply, each carrying everything that can change the result:
+   - findings: `(kernel_digest, choreoir version / compiler_ver, target)`;
+   - V result: `(kernel_digest, tensors_digest, expected_digest, interpreter version)`;
+   - binary: `(source_sha256, toolchain path + version, arch, full flag list, include-dir
+     digest)` — `lower.py` passes `-arch` and `-I` separately from the source, so
+     `source_sha256` alone is not a safe key.
+   Hit rates are reported with the cost record. A reject already seen under the same context
+   costs nothing the second time.
 3. **No SMT in the walk.** Layout stays `shape×stride`; Ave-style Z3 discharge is allowed
    only in the validation of a Tier-1 commit (where seconds are fine), never in `check`. If a
    variant needs a solver to be admitted per kernel, that variant is not ready for Tier 1.
-4. **Toolchain only after admit, and only once per `source_sha256`.** Already the case;
-   write it down as a rule so a future "compile early to get better rejects" change has to
-   argue against it.
+4. **Toolchain only after admit, and at most once per binary cache context.** The first half
+   is the current behaviour; the second is *not* — `materialize()` invokes `nvcc`/`ccec` on
+   every call. Deduplication arrives with item 2. Write both down as a rule so a future
+   "compile early to get better rejects" change has to argue against it.
 5. **Target**: W/L/S/V under 50 ms per candidate on the regression pair; toolchain cost
    reported separately. The number is a budget to be checked, not a claim.
 
@@ -177,10 +200,10 @@ What exists: every proposal carries the full AST; every reject carries the findi
 carries `compiler_ver`, `sink_id`, `source_sha256`, `artifact_sha256`. What is missing is the
 *relationship between candidates* and the *count* that justifies an evolution commit.
 
-1. **`kernel_digest` and `parent_digest` on every Kernel** (in `attrs`, stamped by the
-   proposer): sha256 of canonical JSON, and the digest of the candidate this one was derived
+1. **`kernel_digest` and `parent_digest` on every Kernel** (`kernel_digest` computable by
+   Choreo; `parent_digest` stamped by the proposer, *contingent on Lintel* per the §2 note): sha256 of canonical JSON, and the digest of the candidate this one was derived
    from. The session stream then encodes a tree of mutations, not a list.
-2. **`mutation` record on `propose`**: the enumerated field edits that produced this kernel
+2. **`mutation` record on `propose`** *(contingent on Lintel; session-event field)*: the enumerated field edits that produced this kernel
    from its parent (`[{path: "body.p0.depth", from: 2, to: 3}]`). The agent already edits
    only enumerated fields (SPEC §3); writing the edit down costs nothing and makes "which
    knob moved the number" answerable without diffing JSON.
@@ -189,10 +212,12 @@ carries `compiler_ver`, `sink_id`, `source_sha256`, `artifact_sha256`. What is m
    session streams, not stored by this tree; agentic-compiler's walk can emit it. **The
    evolution trigger becomes a number**: a Tier-1 proposal must cite the ledger row (count,
    sessions, kernels) it answers, or the sink-side `unexpressible` finding it removes.
-4. **`unexpressible` is a finding, not a comment.** When a sink cannot lower a legal schedule
-   (today: a cube `mmad` the stand-in cannot emit), it returns `W` *warning* `node=m0,
-   msg="unsupported: cube.mmad on ascend-a2 stand-in"`. Those warnings are the second input
-   to the ledger.
+4. **`unexpressible` is a finding, not a comment.** When a sink lowers a legal schedule
+   through a documented semantics-preserving fallback (today: scalar MAC loops where the pin
+   names `mma.sync` or cube `mmad`, `print_cuda.py` `_emit_mma`), it returns `W` *warning*
+   `node=m0, msg="fallback: scalar MAC emitted; mma.sync not used"`. An explicitly requested
+   variant the sink cannot emit is the §1.2 rule-1 *error*, not this warning. These warnings
+   are the second input to the ledger.
 5. **Versioned replay.** `pin.json` + `kernel.json` + the `choreoir` version named in
    `compiler_ver` must reproduce `source_sha256` byte for byte. Add a `replay` CLI that
    asserts it; a failed replay is a sink nondeterminism bug and blocks promotion.
@@ -222,7 +247,10 @@ first mismatching element. What is missing is the path *back* from the sink and 
 ## 5. Order of commits, and the falsifier for each
 
 Each row is one IR-evolution commit on this `main`, debated in `STATUS.md`, with a
-`compiler_ver` bump and the regression pair passing. Nothing here is a year-1 promise.
+`compiler_ver` bump and the regression pair passing. Nothing here is a year-1 promise. Rows
+that touch Lintel's envelope or events (#1's `cost` / `parent_digest` / `mutation`, #6's hit
+rates on the measure event) wait for the Lintel batch and the agentic-compiler submodule
+bump (§2 ownership note); their Choreo-internal halves may land first.
 
 | # | Commit | Criterion served | What would show it was wrong |
 |---|---|---|---|
@@ -230,7 +258,7 @@ Each row is one IR-evolution commit on this `main`, debated in `STATUS.md`, with
 | 2 | `source_map.json` sidecar; toolchain diagnostics mapped to `node`; `explain` and `diff` CLIs | 4 | Mapped diagnostics are wrong for > 1 in 20 injected errors on the regression pair. |
 | 3 | Tier-1 enums `Copy.variant`, `Mma.variant`, `Barrier.kind` with today's behavior as `plain`; knob registry; `unexpressible` finding | 1, 3 | Agentic-compiler's walk cannot run unchanged against the bumped pin (the enum broke the consume contract). |
 | 4 | `cp.async` + `mbarrier` on NVIDIA; Ascend declares unsupported | 1 | Measured on a device: `Pipeline.depth=3` with `cp.async` is not faster than `plain` on `gemm_tile` at a realistic tile. Then the variant is noise and should be removed. |
-| 5 | `mma.sync` as the instruction | 1 | GEMM tile reaches < 50 % of cuBLAS at matched shape; then the schedule level has not earned its cost and the survey's falsifier fires. Reported in the survey, not here. |
+| 5 | `mma.sync` as the instruction | 1 | Local implementation threshold: GEMM tile reaches < 50 % of cuBLAS at matched shape; then this lowering has not earned its cost. This does **not** fire the README falsifier, which needs the matched-budget comparison against raw CUDA/PTX/Triton; only that experiment goes to the survey. |
 | 6 | Stage caches with hit rates on the measure event | 2 | Hit rate < 20 % over a 100-candidate walk; caching is then complexity without payback. |
 
 The ledger (§3.3) is what decides the order *after* #3: the next variant is the one with the
@@ -251,8 +279,11 @@ largest `unexpressible` or `{where}` count, not the most interesting one.
 1. Is `parent_digest` the proposer's job (Lintel) or should `check` refuse a kernel without
    one? Position: proposer's job; Choreo stamps `kernel_digest`, Lintel stamps lineage.
 2. Should `unexpressible` be a warning (admit, lower with fallback, count it) or an error
-   (reject, `{where: X}`)? Position: warning now, because a fallback that is slow but correct
-   is still a frozen artifact; revisit when #4 lands and the fallback is a measured loss.
+   (reject, `{where: X}`)? Position (revised after Codex round 1): split by request. An
+   explicitly requested variant the target cannot provide is an error (§1.2 rule 1). An
+   unset/`plain` variant lowered by a documented semantics-preserving fallback is a warning
+   that names the emitted mechanism (§3.4), because a slow but correct fallback is still a
+   frozen artifact; revisit when #4 lands and the fallback is a measured loss.
 3. Does Tier 2 need a registry at all, or is "unregistered keys are ignored and warned" enough?
    Position: the registry is what makes a knob *typed* for the proposer; without it the agent
    is back to guessing strings.
