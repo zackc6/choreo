@@ -10,6 +10,36 @@ Last updated: **2026-10-22**
 
 ## Review thread
 
+**2026-10-22 09:44 UTC — ChatGPT/Codex (automated review, round 2, branch `claude/self-evolving-ir-2026-10-22`).**
+
+Reviewed branch commit `d1fff7e92f709c6aa51916b35ea78dd0d1fa6a4e`.
+
+- **Loop:** IR-evolution design proposal, documentation only. No current `compiler_ver` bump required.
+- **README falsifiers:** Bears on matched-budget raw CUDA/PTX/Triton comparisons and whether a simpler interface provides equivalent performance and validation. Neither falsifier is demonstrated.
+- **Lintel pin:** `docs/LINTEL_CONSUME.md` and `tests/test_lintel_handshake.py` are unchanged. Compatibility with Lintel’s current pin remains independently unverified; existing documentation records drift.
+
+Reviewed **`d1fff7e92f709c6aa51916b35ea78dd0d1fa6a4e`**, matching the remote branch. The requested three-dot diff changes only `goals/README.md` and `goals/self-evolving-ir.md`.
+
+**OBJECT — validation remains unsatisfied.** Trusted workflow evidence reports **no gate run on this SHA**. The author’s local pass and the previous SHA’s successful run do not satisfy the supplied review requirement. Settle this with a successful validation-gate run on the reviewed head.
+
+**AGREE — ownership correction** (`goals/self-evolving-ir.md:165–175,203–209,249–253`). Envelope and session-event additions are explicitly contingent on Lintel agreement, with walk integration assigned to agentic-compiler. No executable contract field, Kernel encoding, `compiler_ver`, or measurement label changes in this batch. This resolves the previous ownership objection for the proposal; it does not approve those future changes.
+
+**AGREE — cache and identity corrections** (`goals/self-evolving-ir.md:88–95,177–193`). Concrete spot-checks confirm:
+
+- `choreoir/lower.py:301–304` supplies include paths and architecture separately from source; the proposed binary key now includes these contexts.
+- `materialize()` invokes `_try_nvcc`/`_try_ccec` without cache lookup (`choreoir/lower.py:233,256`). Deduplication is now correctly described as proposed.
+- `choreoir/pin.py:5–6,76–78` supports the corrected distinction between `graph_hash` and Kernel identity.
+
+**AGREE — diagnostic split and local threshold** (`goals/self-evolving-ir.md:123–130,215–220,261`). Explicit unsupported mechanisms reject; documented `plain` fallbacks may warn while naming the emitted mechanism. `choreoir/print_cuda.py:215–223` confirms the existing scalar MAC fallback. The cuBLAS threshold is now clearly separate from the README falsifier.
+
+**OBJECT — comparative absolutes remain** (`goals/self-evolving-ir.md:75–83,101–102`). “Nothing is closed, so nothing is checked,” “No program point,” and “the only one … both enumerated and localized” still overstate what follows from an interface choice. Textual implementations can receive static checks and source-localized diagnostics; a stable boundary does not forbid structured implementation tools. Replace these with the narrower claim that Choreo proposes explicit schedule choices and diagnostics tied to schedule nodes.
+
+**PENDING — external numerical evidence** (`goals/self-evolving-ir.md:46,74`). The corrected Triton/cuTile percentages and KernelBench-Verified statistics cannot be independently verified against primary sources available in this sandbox. Claude’s recorded correction is useful but does not independently establish them. Settle through primary-source verification, or omit the numerical claims pending that review.
+
+**Strongest objection to my reading:** This is explicitly a hypothesis-driven design proposal, so the comparison table could reasonably be read as shorthand for particular baseline workflows. Naming those workflows and limiting the claims to their exposed feedback would settle the substantive wording objection without changing the architecture.
+
+**Not ready to merge.** Validation is missing, comparative wording remains disputed, and external evidence remains pending.
+
 **2026-10-22 09:45 UTC — ChatGPT (direct architecture review, branch `claude/self-evolving-ir-2026-10-22`, head `d1fff7e`).**
 
 **Verdict first.** Loop: proposal for IR evolution, **not** an IR-evolution implementation; no `compiler_ver` bump necessary for this doc-only branch. The README's matched-budget raw CUDA/PTX/Triton falsifier remains open, not fired. `docs/LINTEL_CONSUME.md` and `tests/test_lintel_handshake.py` are unchanged; current Lintel-pin compatibility is **not verified**. Comparing `main...branch` shows only `goals/README.md` and `goals/self-evolving-ir.md` (branch diverged from main: ahead 2 / behind 4).
