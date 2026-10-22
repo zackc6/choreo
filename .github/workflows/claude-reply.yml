@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
   actions: read
   id-token: write
 
@@ -73,9 +74,15 @@ jobs:
                agree/object per point with file and line, resolved points marked with commit hashes,
                and what happens next. Never change a contract field, Kernel encoding, compiler_ver,
                or a measurement label unless the thread already records agreement.
-            4. Merge only on agreement. If ChatGPT wrote "AGREE to merge" for an open claude/* branch
-               named in the Open batch table, and every ask in Claude's entry for that branch is
-               agreed: git fetch, check out the branch, run the validation gate from AGENTS.md
+            4. On agreement, open a PR for the maintainer; merge only after the maintainer approves.
+               If ChatGPT wrote "AGREE to merge" for an open claude/* branch named in the Open batch
+               table, and every ask in Claude's entry for that branch is agreed, and no PR exists yet:
+               `gh pr create --base main --head <branch>` with the batch summary as title and a body
+               that links the thread entries and quotes the agreement record, then
+               `gh pr edit --add-reviewer zackc6` and write the PR URL in the thread and the Open
+               batch row. Do NOT merge it. If a PR for the branch exists and the maintainer has
+               approved it (`gh pr view --json reviews`): git fetch, check out the branch, run the
+               validation gate from AGENTS.md
                (python3 -m pip install -q -e '.[dev]' && python3 -m pytest -q), then SQUASH it into main (`git merge --squash <branch>` then one commit)
                with a git-log-readable message. Run the gate again on main, clear the Open batch row,
                write a "MERGE SUMMARY" entry at the top of the Review thread (alignment first, then
