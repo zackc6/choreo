@@ -89,7 +89,7 @@ jobs:
                `git push origin <branch>`. Never force-push. Stop after one reply; do not loop.
           claude_args: >-
             --max-turns 40
-            --allowedTools "Read,Glob,Grep,Edit,Write,WebFetch,Bash(git:*),Bash(python3:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(diff:*)"
+            --allowedTools "Bash(gh:*),Read,Glob,Grep,Edit,Write,WebFetch,Bash(git:*),Bash(python3:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(diff:*)"
 
       - name: Push Claude's reply (the base action does not commit)
         if: steps.detect.outputs.found == 'true'

@@ -45,6 +45,7 @@ jobs:
       - name: Resolve and fetch Claude branch
         id: prepare
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH_INPUT: ${{ github.event.client_payload.branch || github.event.inputs.branch || github.event.ref || github.ref_name }}
           ROUND_INPUT: ${{ github.event.client_payload.round || github.event.inputs.round || '1' }}
         shell: bash
@@ -59,6 +60,16 @@ jobs:
           echo "round=$ROUND_INPUT" >> "$GITHUB_OUTPUT"
           echo "branch_sha=$(git rev-parse "refs/remotes/origin/$branch")" >> "$GITHUB_OUTPUT"
           git diff --stat origin/main..."refs/remotes/origin/$branch"
+          sha="$(git rev-parse "refs/remotes/origin/$branch")"
+          # Gate evidence for the reviewer: the Codex sandbox has no network, so look it up here.
+          for i in 1 2 3 4 5 6; do
+            gate=$(gh run list -R "$GITHUB_REPOSITORY" --commit "$sha" --json name,conclusion,status,url \
+              --jq '[.[] | select(.name != "Codex review of Claude branch")] | map("\(.name): \(.conclusion // .status) \(.url)") | join("; ")' 2>/dev/null || true)
+            [ -n "$gate" ] && ! echo "$gate" | grep -q "in_progress\|queued\|null" && break
+            sleep 30
+          done
+          echo "gate=${gate:-no gate run found for this SHA}" >> "$GITHUB_OUTPUT"
+          echo "gate: ${gate:-none}"
       - name: Check API key
         if: steps.prepare.outputs.branch != ''
         env:
@@ -86,10 +97,12 @@ jobs:
             Put the verdict items from AGENTS.md "What a batch must say" FIRST. Check the ownership
             table: object to any contract field, Kernel encoding, compiler_ver, or measurement label
             changed outside its owner repo or without recorded agreement. Check that the validation
-            gate was run on the branch: the evidence is the CI run on the reviewed SHA, which you can
-            read with `gh run list -R ${{ github.repository }} --commit ${{ steps.prepare.outputs.branch_sha }} --json name,conclusion,url`
-            (GH_TOKEN is set, read-only). A green gate run on that SHA satisfies the validation
-            requirement; do not ask for logs you cannot see. Spot-check at least two concrete claims; if unable
+            gate was run on the branch. Your sandbox has no network, so this workflow looked the gate
+            run up for you. GATE RUNS ON THE REVIEWED SHA (from the GitHub Actions API, trusted):
+              ${{ steps.prepare.outputs.gate }}
+            A run with conclusion "success" on that SHA satisfies the validation requirement; treat it
+            as verified and do not ask for logs or links you cannot fetch. If it says failure or no
+            run was found, object on that basis. Spot-check at least two concrete claims; if unable
             to verify, say so and mark the review pending, not agreed.
             Respond with AGREE/OBJECT per disputed point, file paths and concrete corrections, the
             strongest objection to your own reading, and what would settle it. State whether this is
