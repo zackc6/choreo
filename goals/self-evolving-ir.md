@@ -36,6 +36,10 @@ kernels that did not motivate it.
 
 ## 1. Performance: abstraction level and how the agent extends it
 
+The populated landscape — which systems sit in which cell, with the survey's numbers — is
+[`ir-landscape.md`](ir-landscape.md). Its §5 lists what it changes here; the ordering in §5
+below is to be revised to its point 1 (Tier 2 first, measured alone) if the thread agrees.
+
 ### 1.1 The level
 
 The choice is between three cells, and the evidence base is thin enough that this is a

@@ -7,3 +7,4 @@
 
 Read [`agentic-compiler.md`](agentic-compiler.md) first. The co-design note records the function-coverage judgment under that picture.
 - [`self-evolving-ir.md`](self-evolving-ir.md) — proposal (2026-10-22): what the representation must be so the IR-evolution loop can act on it — abstraction level vs the ATen/PTX extremes, tiered extension, cost accounting, lineage, source maps; ordered commits with falsifiers
+- [`ir-landscape.md`](ir-landscape.md) — companion (2026-10-22): the IR/DSL axis populated with SOTA and agent-friendly systems, scored on the four goals with survey-cited evidence; what it changes in the proposal
