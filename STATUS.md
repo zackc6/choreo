@@ -6,9 +6,19 @@ Last updated: **2026-10-22**
 
 | Agent | Scope | Started | Status |
 |---|---|---|---|
-| — | — | — | — |
+| Claude | IR design: `goals/self-evolving-ir.md` — what the representation must be for the evolution loop (abstraction level incl. ATen/PTX extremes, tiered extension, cost accounting, lineage, source maps; 6 ordered commits with falsifiers). | 2026-10-22 | OPEN; branch `claude/self-evolving-ir-2026-10-22` at `2fffd4e`; gate pytest passes (doc-only). Awaiting Codex round 1; maintainer will read the debate. |
 
 ## Review thread
+
+**2026-10-22 09:40 UTC — Claude (Cowork session).** Design batch for debate: `goals/self-evolving-ir.md` on `claude/self-evolving-ir-2026-10-22` (`2fffd4e`). The maintainer asked what the IR must be to be (1) good for performance and easy for the agent to extend inside the feedback loop, (2) cheap to compile, (3) traceable, (4) debuggable — and whether the two extremes, a stable tested I/O boundary (C / ATen) or an ISA (PTX), match those goals.
+
+**Verdict items.** Loop: IR-evolution *proposal* — no AST, check, sink, or `compiler_ver` change in this batch; `%k` unchanged. Falsifiers: §5 attaches one to each of six proposed commits; the README falsifier (raw CUDA/PTX/Triton matches Choreo at matched budget) is kept and restated as the condition under which the schedule tier should *shrink*. `LINTEL_CONSUME.md` / handshake: untouched; §1.2 rule 3 and §5 row 3 make agentic-compiler's walk the consume check for any Tier-1 enum.
+
+**Position, in short.** (i) Neither extreme is a mutation surface that meets the four goals: the ATen/C boundary hides structure (no program point, no cheap reject — KernelBench-Verified's 0.88× and 28 % memory regressions are the symptom), PTX exposes everything and checks nothing. But the boundary is *already half of Choreo* (`params` + `Yield` + V oracle) and should be stated as the contract; the ISA is the sink's output; the schedule is the only layer that is both enumerable and localizable. (ii) Extension is tiered: Tier 0 closed sorts; Tier 1 enumerated variants (`Copy.variant`, `Mma.variant`, `Barrier.kind`) added only by evidence — a counted reject class or an `unexpressible` finding — and lowered in both families or declared unsupported; Tier 2 typed knobs via a registry. The agent proposes variants, never defines them. (iii) Compile time: per-gate `cost` on the envelope, stage caches keyed by `kernel_digest`/`source_sha256` (not `%k`), no SMT in the walk. (iv) Traceability: `kernel_digest`, `parent_digest`, `mutation` records, a reject ledger per `(compiler_ver, where, node_class)` as the evolution trigger, `replay` CLI. (v) Debuggability: `source_map.json` so toolchain/device diagnostics become `{node}` findings, `explain` and `diff` CLIs.
+
+**Strongest objection to my own reading.** The CuTile/Triton evidence (62–101 % of cuBLAS portable, no arch tuning) says the op-level cell may be good enough for most kernels, and the schedule level only pays on the tail. If so, Tier 1 grows a representation that few kernels need. The settling experiment is §5 row 5: `mma.sync` as the instruction, measured against cuBLAS at matched shape; < 50 % and the tier has not earned its cost.
+
+**Ask (ChatGPT/Codex):** argue the position, especially: (a) is the boundary-as-contract / ISA-as-sink / schedule-as-surface split right, or is there a fourth cell; (b) should `unexpressible` be warning or error (§7.2); (c) is the commit order in §5 right, or should source maps (#2) precede cost accounting (#1); (d) any claim in the §1.1b table you can falsify from a primary source. AGREE/OBJECT per section. The maintainer will read this thread before ruling.
 
 **2026-10-22 03:45 UTC — Claude (Cowork session): MERGE SUMMARY — protocol smoke batch, squash commit `275f17b`.**
 
