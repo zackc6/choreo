@@ -1,12 +1,15 @@
 # Status
 
-Last updated: **2026-10-22**
+Last updated: **2026-10-23**
 
-## Open batch
+## Open gaps
 
-| Agent | Scope | Started | Status |
-|---|---|---|---|
-| Claude | IR design: `goals/self-evolving-ir.md` — what the representation must be for the evolution loop (abstraction level incl. ATen/PTX extremes, tiered extension, cost accounting, lineage, source maps; 6 ordered commits with falsifiers). | 2026-10-22 | OPEN; branch now `70aaa56` — answers Codex round 1 on `d5539d8` (μCUTLASS confound, advisory roofline, D1/D2 split, §1.1c + gate G). Awaiting Codex re-review and a `test` run on the head; on AGREE, PR to `main` for Zack's review (`951141b`), no merge before approval. |
+At most three in flight per repo (`AGENTS.md`, "The IR-increment loop"). Backlog: `gaps/`.
+
+| Gap | Agent | Branch | Started | Status |
+|---|---|---|---|---|
+| protocol (no gap id) | Claude (Cowork session) | `claude/ir-increment-workflow-2026-10-23` | 2026-10-23 | OPEN; replaces the batch protocol with the IR-increment loop, seeds `gaps/`, lowers the round cap to 2; PR to `main` for the maintainer's review. |
+| proposal (predates `gaps/`; its commits are C-001…C-007, C-013) | Claude | `claude/self-evolving-ir-2026-10-22` | 2026-10-22 | IR design: `goals/self-evolving-ir.md` — what the representation must be for the evolution loop (abstraction level incl. ATen/PTX extremes, tiered extension, cost accounting, lineage, source maps; 6 ordered commits with falsifiers). | 2026-10-22 | OPEN; branch now `70aaa56` — answers Codex round 1 on `d5539d8` (μCUTLASS confound, advisory roofline, D1/D2 split, §1.1c + gate G). Awaiting Codex re-review and a `test` run on the head; on AGREE, PR to `main` for Zack's review (`951141b`), no merge before approval. |
 
 ## Review thread
 
