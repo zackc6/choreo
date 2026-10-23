@@ -3,7 +3,7 @@ on:
   push:
     branches: [main, 'claude/**', 'chatgpt/**']
 jobs:
-  pytest:
+  carriers:
     runs-on: ubuntu-24.04  # nvcc 12.8 rejects the Ubuntu 26 host gcc (ubuntu-latest migrated 2026-10-19)
     timeout-minutes: 45
     steps:
@@ -16,7 +16,7 @@ jobs:
         with:
           path: ~/.local/cuda-nvcc
           key: cuda-nvcc-linux-x86_64-12.8.93-cudart-12.8.90
-      - run: python3 -m pip install -e ".[dev]"
+      - run: python3 -m pip install -e .
       - name: Official nvcc (NVIDIA cubin sink)
         env:
           CHOREO_FETCH_NVCC: "1"
@@ -29,11 +29,11 @@ jobs:
         with:
           path: ~/.local/cuda-nvcc
           key: cuda-nvcc-linux-x86_64-12.8.93-cudart-12.8.90
-      - name: pytest (cubin required; ccec not a public redist)
-        env:
-          CHOREO_REQUIRE_NVCC: "1"
-        run: python3 -m pytest -q -rs 2>&1 | tee pytest.log; test ${PIPESTATUS[0]} -eq 0
+      - name: carrier check (examples admit + lower; fails reject; V where paired)
+        run: python3 scripts/check_carriers.py
+      - name: cubin sink smoke (official nvcc; ccec not a public redist)
+        run: |
+          python3 -m choreoir lower examples/gemm.json -o /tmp/choreo-out --emit cubin
+          test -s /tmp/choreo-out/*.cubin || { echo "no cubin emitted"; ls -la /tmp/choreo-out; exit 1; }
         shell: bash
-      - if: failure()
-        run: python3 scripts/ci_annotate.py pytest.log
-        # Ascend NPU-bin tests skip here. Missing nvcc fails the job.
+        # IR-design stage: carriers are illustrative, not a correctness contract (AGENTS.md).

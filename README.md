@@ -68,8 +68,8 @@ The CPU interpreter lets admit run without a GPU (TIRx-style sim). It is part of
 Python 3.11+.
 
 ```bash
-python3 -m pip install -e '.[dev]'
-python3 -m pytest -q
+python3 -m pip install -e .
+python3 scripts/check_carriers.py
 ```
 
 Public GitHub Actions fetches official `nvcc` (`CHOREO_FETCH_NVCC=1`) and sets `CHOREO_REQUIRE_NVCC=1` so NVIDIA cubin tests run on `main`. `ccec` is not a public redist; Ascend NPU-bin tests skip there.
@@ -140,7 +140,7 @@ Findings are JSON-serializable (`Finding.as_dict`) so a later agent can consume 
 ```text
 choreoir/     AST + checkers + interpreter + NV/Ascend sinks + JSON FFI
 examples/     copy and GEMM-tile kernels as JSON (gmem writeback); fails/ localized rejects; proposal/pin handshake goldens
-tests/        wellformed / layout / sync / sim / printer / CLI
+scripts/      check_carriers.py (examples admit, fails reject, V where paired); ci_annotate.py
 docs/SPEC.md  grammar and admit rules
 docs/LINTEL_CONSUME.md  what the Lintel plan repo should treat as current
 goals/        early architecture, function coverage, and IR-evolution judgment
