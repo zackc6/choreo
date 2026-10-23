@@ -122,14 +122,14 @@ jobs:
             const owner = context.repo.owner, repo = context.repo.repo;
             const branch = process.env.DEBATE_BRANCH || '';
             const round = Number(process.env.DEBATE_ROUND);
-            if (!/^claude\/[A-Za-z0-9._\/-]+$/.test(branch) || !(round >= 1 && round <= 3)) {
+            if (!/^claude\/[A-Za-z0-9._\/-]+$/.test(branch) || !(round >= 1 && round <= 2)) {
               core.warning('No valid Claude debate branch/round; not dispatching.'); return;
             }
             const status = await github.rest.repos.getContent({owner, repo, path: 'STATUS.md', ref: 'main'});
             if (status.data.sha === process.env.STATUS_BEFORE) {
               core.warning('Claude did not publish a STATUS.md reply; stopping debate loop.'); return;
             }
-            if (round >= 3) { core.notice('Reached max debate rounds.'); return; }
+            if (round >= 2) { core.notice('Reached max debate rounds.'); return; }
             try { await github.rest.repos.getBranch({owner, repo, branch}); }
             catch (err) { if (err.status === 404) { core.notice('Branch merged/deleted.'); return; } throw err; }
             await github.rest.repos.createDispatchEvent({
