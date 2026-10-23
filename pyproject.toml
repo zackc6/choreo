@@ -6,9 +6,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 
-[project.optional-dependencies]
-dev = ["pytest>=8"]
-
 [project.scripts]
 choreo = "choreoir.__main__:main"
 
@@ -18,7 +15,3 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["choreoir*"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-q"

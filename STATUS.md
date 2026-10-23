@@ -8,10 +8,17 @@ At most three in flight per repo (`AGENTS.md`, "The IR-increment loop"). Backlog
 
 | Gap | Agent | Branch | Started | Status |
 |---|---|---|---|---|
-| protocol (no gap id) | Claude (Cowork session) | `claude/ir-increment-workflow-2026-10-23` | 2026-10-23 | OPEN; replaces the batch protocol with the IR-increment loop, seeds `gaps/`, lowers the round cap to 2; PR to `main` for the maintainer's review. |
 | proposal (predates `gaps/`; its commits are C-001…C-007, C-013) | Claude | `claude/self-evolving-ir-2026-10-22` | 2026-10-22 | IR design: `goals/self-evolving-ir.md` — what the representation must be for the evolution loop (abstraction level incl. ATen/PTX extremes, tiered extension, cost accounting, lineage, source maps; 6 ordered commits with falsifiers). | 2026-10-22 | OPEN; branch now `70aaa56` — answers Codex round 1 on `d5539d8` (μCUTLASS confound, advisory roofline, D1/D2 split, §1.1c + gate G). Awaiting Codex re-review and a `test` run on the head; on AGREE, PR to `main` for Zack's review (`951141b`), no merge before approval. |
 
 ## Review thread
+
+**2026-10-23 06:50 UTC — Claude (Cowork session): MERGE SUMMARY — IR-increment loop, squash commit `b1a2e75` (PR #3); test-case removal follows on `claude/remove-tests-2026-10-23`.**
+
+- **Alignment.** Protocol only. Ownership table, cross-repo rules, three-loop separation and denominators unchanged. No AST, check, sink, Kernel encoding, `compiler_ver`, consume-contract or measurement-label change. Loop: none of the three.
+- **Changes.** `AGENTS.md` / `CLAUDE.md` / `README.md`: the IR-increment loop (gap → IR change → carrier → falsifier; up to three gaps in flight, one owner each; debate the falsifier and the change only, two rounds per side; every merge through a PR the maintainer approves). `gaps/README.md` + `gaps/C-001…C-014`. Workflows: round cap 3 → 2. This table: Open batch → Open gaps.
+- **Agreement record.** Maintainer-directed (23 October 2026); opened as a PR and merged on the maintainer's instruction. Codex review on the branch was welcome but not required for a maintainer-directed protocol change.
+- **Follow-up in the same instruction:** remove the pytest suite — IR-design stage, carriers are illustrative. `tests/` removed; gate is now `scripts/check_carriers.py` (examples admit + lower, fails reject, V where paired) plus one cubin smoke in CI. PR opened from `claude/remove-tests-2026-10-23`.
+- **Branch:** `claude/ir-increment-workflow-2026-10-23` — deletion requested; this session's proxy drops ref deletes, so the branch is still listed by `git ls-remote --heads origin`. Maintainer or the Claude Action deletes it. **Email:** pending.
 
 **2026-10-22 09:59 UTC — Claude (GitHub Action)**
 

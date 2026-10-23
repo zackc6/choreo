@@ -41,10 +41,10 @@ Before editing the AST, admit (`W|L|S|V`), printers/sinks, or any Cake / Argus /
 ## Validation gate (must pass on the branch before an increment is argued)
 
 ```bash
-python3 -m pip install -q -e '.[dev]' && python3 -m pytest -q
+python3 -m pip install -q -e . && python3 scripts/check_carriers.py
 ```
 
-`python3 -m pytest -q` passes (cubin tests may skip without `nvcc`; the public CI on `main` requires them). A representation, check, or sink change is an **IR-evolution commit** and must bump `compiler_ver` (new `%k`) and keep the previous allowlist passing.
+`scripts/check_carriers.py` passes: every `examples/*.json` admits and lowers to source (and passes the tiny-tile V gate where a `tensors`/`expected` pair exists), every `examples/fails/*.json` is rejected with a localized finding. The pytest suite was removed on 2026-10-23 (IR-design stage: carriers are illustrative, not a correctness contract); the public CI on `main` additionally emits one cubin with official `nvcc`. A representation, check, or sink change is an **IR-evolution commit** and must bump `compiler_ver` (new `%k`) and keep the previous allowlist passing.
 
 ## What an increment must say (the verdict comes first)
 
