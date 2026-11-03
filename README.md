@@ -12,6 +12,8 @@ Early architecture: [`goals/agentic-compiler.md`](goals/agentic-compiler.md). Wh
 
 Upstream sketch: [zackc6/choreo](https://github.com/zackc6/choreo). Survey: [zackc6/ai-compiler-survey](https://github.com/zackc6/ai-compiler-survey) through 2026-09-23.
 
+See [the 2026-11-03 hardware abstraction review](goals/hardware-abstraction-review.md) for tensor/tile first-class semantics, cross-programming-model tradeoffs, MLIR/TIRx alternatives, bounded optimization costs, and the checklist future design changes must address. This record does not implement those proposals.
+
 ## What this representation is for
 
 The survey’s recommendation is to compare existing languages, structured interfaces, and a proposed representation on the same tasks. Choreo is that proposed kernel-schedule representation. It has not yet earned a permanent place by that comparison.

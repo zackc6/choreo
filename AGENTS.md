@@ -26,6 +26,19 @@ Before editing the AST, admit (`W|L|S|V`), printers/sinks, or any Cake / Argus /
 - [`goals/agentic-compiler.md`](goals/agentic-compiler.md) — early architecture: Lintel × Choreo × lowering, five functions, three loops
 - [`goals/lintel-codesign.md`](goals/lintel-codesign.md) — function-coverage judgment, plus implementer detail
 
+## Hardware abstraction review (maintainer discussion, 2026-11-03)
+
+All new repository content and review records must be written in English.
+Before representation, validation, transformation, lowering, target, or architecture changes,
+read [`goals/hardware-abstraction-review.md`](goals/hardware-abstraction-review.md).
+Address its section 8 checklist in the increment/review record; mark non-applicable items
+with reasons and keep unresolved items explicit. This is a review requirement, not a new
+runtime gate. The record preserves hypotheses as hypotheses and does not replace current
+contracts, dual-sink requirements, or the separate IR-design proposal.
+
+The newer IR-increment protocol in this file governs landing; historical direct-main/no-PR
+instructions in the co-design skill and detail goal do not override it.
+
 ## Grammar
 
 - [`docs/SPEC.md`](docs/SPEC.md)

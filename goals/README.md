@@ -6,3 +6,5 @@
 | [Choreo × Lintel co-design](lintel-codesign.md) | active (detail and judgment) | same |
 
 Read [`agentic-compiler.md`](agentic-compiler.md) first. The co-design note records the function-coverage judgment under that picture.
+
+Maintainer discussion and future-change review criteria: [Hardware abstraction and bounded optimization](hardware-abstraction-review.md) (2026-11-03; hypotheses, alternatives, TIRx boundaries, and required checklist).
