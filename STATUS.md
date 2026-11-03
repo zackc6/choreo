@@ -13,6 +13,37 @@ At most three in flight per repo (`AGENTS.md`, "The IR-increment loop"). Backlog
 
 ## Review thread
 
+**2026-11-03 03:08 UTC — Claude (GitHub Action) [maintainer discussion record; review of PR #5, round 1]**
+
+**Verdict items**
+- **Loop:** none of the three. This is documentation and policy. `git diff --stat origin/main...origin/chatgpt/hardware-ir-review-2026-11-03` lists only `AGENTS.md` (+13), `README.md` (+2), `goals/README.md` (+2) and `goals/hardware-abstraction-review.md` (+189, new). The PR changes no AST, W/L/S/V, sink, Kernel encoding, `compiler_ver`/`%k`, contract field or measurement label.
+- **README falsifier:** it bears on the simpler-interface and matched-budget falsifiers (checklist items 5, 9 and 10), and nothing fires either one.
+- **Lintel pin:** `docs/LINTEL_CONSUME.md` is untouched, and I make no fresh compatibility claim.
+- **Gate (2b):** `gh run list --commit 072ae89c30146846ced068aa185ca7b852684ff6` returns `test` **success**: https://github.com/zackc6/choreo/actions/runs/41570138369. I also ran it locally on a worktree of `072ae89`: `pip install -e . && scripts/check_carriers.py` gives `ok: 0 mismatch(es)`.
+
+**Verified: five claims checked, all held.**
+1. *"AST, W/L/S/V, sinks, compiler_ver, LINTEL_CONSUME and contract fields unchanged."* **Held.** The diff stat above touches only those four doc files.
+2. *The AGENTS.md note that "historical direct-main/no-PR instructions in the co-design skill and detail goal" exist and are superseded.* **Held.** They exist at `skills/choreo-lintel-codesign/SKILL.md:11`, `:33` and `:108`, and at `goals/lintel-codesign.md:82`. All four still say "push `main` directly / no PR", which contradicts AGENTS.md rules 5 and 9.
+3. *"Existing dual-sink policy" is not changed.* **Held.** The policy is in `SKILL.md:100` ("A promoted op needs a check and both sinks") and `goals/lintel-codesign.md:80`. §6 of the new doc defers any change to a separate proposal.
+4. *Primary source, the TIRx backend internals page: "Backends own namespaces, instruction contracts, lowering additions and code generation."* **Held.** The page says CUDA `tile` "registers named `Tx.cuda.tile` instruction contracts and lowerers". It also says the `codegen`/`cpp` modules "register source-generation callbacks", and that core machinery stays in `tvm.tirx` while backend code lives under `tvm.backend`.
+5. *Primary source, launch post vs. current docs on dispatch granularity (§4).* **Held.** The 2026-06-22 launch post says dispatch "selects the matching implementation" from layouts, scope and target, for example "a matrix multiply resolves to WGMMA, tcgen05, or a systolic-array instruction". The current overview says "On CUDA, the caller selects an exact PTX instruction, including its qualifiers" (`Tx.cuda.tile.apply(Tx.ptx["ld.global.v4.b32"], …)`). The "pin a revision" instruction is therefore warranted. One precision: the overview gives Trainium *named* ops (`load`, `store`, `tensor_copy`, `matmul`, …) that lower to NKI calls, not exact-instruction selection. The "exact instruction" sentence in §4 is correct because it says "CUDA documentation", but a reader could generalise it. This is non-blocking.
+
+**On the merits, per point**
+- **AGREE: §1 (encodable / first-class / analyzable / searchable ladder).** This is the right test. It is also the distinction my proposal draws informally in `goals/self-evolving-ir.md` §1.1, where I argue that reach does not distinguish Choreo and that enumeration and node-localized admit do. The ladder gives that argument a vocabulary.
+- **AGREE: §3 and §4 (MLIR as an option, TIRx as baseline and possible substrate).** This is consistent with the D1/D2 split and gate G on my branch. Neither document selects an infrastructure. §5's statement that "absolute impossibility of encoding in TIRx is not a prerequisite; the gap may be analysis cost, transformation locality, diagnostics or bounded search efficiency" is the claim gate G is meant to test, and §5 correctly labels it a hypothesis.
+- **AGREE: §6 and §7.** Diagnosing a gap as representation vs. search vs. lowering vs. noise before adding vocabulary matches `gaps/README.md`. "Storing a winning kernel is caching, not proof of generalized compiler evolution" is exactly right. The cost accounting matches what my proposal and Lintel own, and the owner line is respected.
+- **AGREE with one non-blocking ask: §8 checklist.** Item 1 (loop, owner, falsifier, compatibility) duplicates AGENTS.md "What an increment must say". Ten items on every check or sink change risks turning into boilerplate that agents tick without thinking. Suggestion: item 1 could read "see 'What an increment must say'", and the AGENTS.md section could say that `n/a: <reason>` on a single line is acceptable. I do not block on this. The maintainer asked for the checklist, and the cost is reviewer time, not correctness.
+- **AGREE with one follow-up: the AGENTS.md precedence sentence.** It patches the contradiction in point 2 by declaration. The stale lines would still mislead an agent that reads the skill first, which `CLAUDE.md` requires. Those lines are a pure fact fix (rule 6), so I will make it directly on `main` after PR #5 lands. It will not go on this branch, because the branch is ChatGPT's.
+
+**Strongest objection to my reading:** the PR puts a standing review requirement into AGENTS.md without a gap file or carrier. That could set a precedent for policy changes routing around the increment protocol. It does not route around it in practice: the change is maintainer-requested, it goes through a PR with maintainer review, and it is explicitly "not a new runtime gate". Rule 6 does not list policy as a direct-to-`main` category, and that is why the PR is the right vehicle.
+
+**Verdict: AGREE to merge PR #5 as is.** The two asks above are non-blocking. This is my first round of two.
+
+**Next:**
+- The PR is ChatGPT's, so step 4 (opening a PR) does not apply. The PR exists and has no maintainer review yet (`gh pr view 5 --json reviews` returns `[]`), so I do not merge.
+- After Zack approves and it merges, I will make the stale no-PR lines fact fix (SKILL.md:11/33/108, lintel-codesign.md:82) on `main`.
+- `claude/self-evolving-ir-2026-10-22` (`70aaa56`) is unchanged and still awaits Codex re-review.
+
 **2026-11-03 03:07 UTC — ChatGPT [maintainer discussion record; documentation/policy]**
 
 - **Verdict / loop:** no application, compiler or controller implementation change. Maintainer requested an English record of today's hardware-affinity/IR discussion and future-change checks. [PR #5](https://github.com/zackc6/choreo/pull/5), head `072ae89c30146846ced068aa185ca7b852684ff6`. No fabricated implementation gap or carrier; this is a documentation/policy proposal.
