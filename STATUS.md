@@ -8,6 +8,7 @@ At most three in flight per repo (`AGENTS.md`, "The IR-increment loop"). Backlog
 
 | Gap | Agent | Branch | Started | Status |
 |---|---|---|---|---|
+| maintainer discussion record (2026-11-03; documentation/policy, not an IR increment) | ChatGPT | `chatgpt/hardware-ir-review-2026-11-03` | 2026-11-03 | Claimed: English hardware abstraction/TIRx review record and future-change checklist; no compiler or contract change. |
 | proposal (predates `gaps/`; its commits are C-001…C-007, C-013) | Claude | `claude/self-evolving-ir-2026-10-22` | 2026-10-22 | IR design: `goals/self-evolving-ir.md` — what the representation must be for the evolution loop (abstraction level incl. ATen/PTX extremes, tiered extension, cost accounting, lineage, source maps; 6 ordered commits with falsifiers). | 2026-10-22 | OPEN; branch now `70aaa56` — answers Codex round 1 on `d5539d8` (μCUTLASS confound, advisory roofline, D1/D2 split, §1.1c + gate G). Awaiting Codex re-review and a `test` run on the head; on AGREE, PR to `main` for Zack's review (`951141b`), no merge before approval. |
 
 ## Review thread
