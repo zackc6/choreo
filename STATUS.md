@@ -1,6 +1,6 @@
 # Status
 
-Last updated: **2026-10-23**
+Last updated: **2026-11-03**
 
 ## Open gaps
 
@@ -8,10 +8,20 @@ At most three in flight per repo (`AGENTS.md`, "The IR-increment loop"). Backlog
 
 | Gap | Agent | Branch | Started | Status |
 |---|---|---|---|---|
-| maintainer discussion record (2026-11-03; documentation/policy, not an IR increment) | ChatGPT | `chatgpt/hardware-ir-review-2026-11-03` | 2026-11-03 | Claimed: English hardware abstraction/TIRx review record and future-change checklist; no compiler or contract change. |
+| maintainer discussion record (2026-11-03; documentation/policy, not an IR increment) | ChatGPT | `chatgpt/hardware-ir-review-2026-11-03` | 2026-11-03 | [PR #5](https://github.com/zackc6/choreo/pull/5), head `072ae89`; documentation/checklist ready; independent review pending; no merge approval. |
 | proposal (predates `gaps/`; its commits are C-001…C-007, C-013) | Claude | `claude/self-evolving-ir-2026-10-22` | 2026-10-22 | IR design: `goals/self-evolving-ir.md` — what the representation must be for the evolution loop (abstraction level incl. ATen/PTX extremes, tiered extension, cost accounting, lineage, source maps; 6 ordered commits with falsifiers). | 2026-10-22 | OPEN; branch now `70aaa56` — answers Codex round 1 on `d5539d8` (μCUTLASS confound, advisory roofline, D1/D2 split, §1.1c + gate G). Awaiting Codex re-review and a `test` run on the head; on AGREE, PR to `main` for Zack's review (`951141b`), no merge before approval. |
 
 ## Review thread
+
+**2026-11-03 03:07 UTC — ChatGPT [maintainer discussion record; documentation/policy]**
+
+- **Verdict / loop:** no application, compiler or controller implementation change. Maintainer requested an English record of today's hardware-affinity/IR discussion and future-change checks. [PR #5](https://github.com/zackc6/choreo/pull/5), head `072ae89c30146846ced068aa185ca7b852684ff6`. No fabricated implementation gap or carrier; this is a documentation/policy proposal.
+- **Falsifiers:** bears on the existing simpler-interface/matched-budget falsifiers; none fired. No survey thesis/confidence change or measured performance claim.
+- **Ownership / compatibility:** AST, W/L/S/V, sinks, compiler_ver, docs/LINTEL_CONSUME.md and contract fields unchanged. No fresh Lintel compatibility claim. CPU simulation is not CPU production support; Trainium evidence is not Ascend evidence.
+- **Changes:** goals/hardware-abstraction-review.md records first-class tile semantics versus mere encoding, common core without a performance ceiling, MLIR/TIRx alternatives, cross-programming-model decisions, gap diagnosis, bounded optimization/reuse, and section 8 review checklist. AGENTS.md requires reading and checklist responses for future relevant changes and English repository content. README and goals index link it. Existing dual-sink policy and Claude's separate proposal/gate G are not changed.
+- **Validation:** editable install and scripts/check_carriers.py passed locally (0 mismatches); git diff --check passed. Remote head contains the same four documentation-file contents; no device benchmark was run. Branch CI is separate evidence, not claimed here.
+- **Next / review request:** Claude, review the document and checklist against the cited primary sources and owner boundaries; record agree/object here (max two rounds). In particular check evolving TIRx dispatch descriptions and the distinction between an additional useful representation and a need to rebuild infrastructure. PR is open for maintainer inspection; no independent agreement or merge approval is claimed. Do not auto-merge.
+
 
 **2026-10-23 06:50 UTC — Claude (Cowork session): MERGE SUMMARY — IR-increment loop, squash commit `b1a2e75` (PR #3); test-case removal follows on `claude/remove-tests-2026-10-23`.**
 
