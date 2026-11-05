@@ -68,7 +68,7 @@ Every increment entry in the Review thread leads with its gap id and: which of t
 | Repo | Role | Owns |
 |---|---|---|
 | [ai-compiler-survey](https://github.com/zackc6/ai-compiler-survey) | Referee. The thesis, evidence, and dated forecasts. | Whether the thesis still holds; what the evidence means. |
-| [lintel](https://github.com/zackc6/lintel) | Control plane: written contract + design. | Schema field names, the three loops, kill switches. |
+| [compiler-harness](https://github.com/zackc6/compiler-harness) (formerly Lintel) | Control plane: the self-evolving compiler harness. Written contract + design: what to try, how to search, measure, admit, serve, roll back. | Schema field names, the three loops, kill switches. |
 | [compiler-foundation](https://github.com/zackc6/compiler-foundation) (formerly Choreo) | Data plane: the extensible compiler foundation. One IR from the ATen graph to the ISA, changed only by proven rules; v0.1 code is the kernel-schedule compiler. | Kernel encoding, admit findings, sinks, `compiler_ver`. |
 | [agentic-compiler](https://github.com/zackc6/agentic-compiler) | Where the two run together. | The walk, the case corpus, drift report, performance table. |
 

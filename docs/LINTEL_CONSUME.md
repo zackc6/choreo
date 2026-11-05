@@ -1,6 +1,6 @@
 # Lintel consume contract (from this tree)
 
-Sibling: [zackc6/lintel](https://github.com/zackc6/lintel). **Read there, do not copy `choreoir` into it.** This file is what that plan repo should treat as current. The live Lintel tree this contract checks is docs + schemas (no `src/`). This agent cannot push `zackc6/lintel` (`cursor[bot]` 403).
+Sibling: [zackc6/compiler-harness](https://github.com/zackc6/compiler-harness). **Read there, do not copy `choreoir` into it.** This file is what that plan repo should treat as current. The live Lintel tree this contract checks is docs + schemas (no `src/`). This agent cannot push `zackc6/lintel` (`cursor[bot]` 403).
 
 Choreo is the kernel-schedule **compiler**. Lintel is the control plane. Union is **admit signals**, not languages. Application search, IR evolution, and controller improvement stay separate loops. Function coverage (represent, transform, map, validate, coordinate) is the early architecture: [`goals/agentic-compiler.md`](../goals/agentic-compiler.md). The names `copy` and `gemm_tile` below are the regression pin of that handshake. They are not the function set. Wording that still says “year-1” in the checker matches this pin’s current Lintel tree; it is not a scope horizon.
 
