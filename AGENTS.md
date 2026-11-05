@@ -69,7 +69,7 @@ Every increment entry in the Review thread leads with its gap id and: which of t
 |---|---|---|
 | [ai-compiler-survey](https://github.com/zackc6/ai-compiler-survey) | Referee. The thesis, evidence, and dated forecasts. | Whether the thesis still holds; what the evidence means. |
 | [lintel](https://github.com/zackc6/lintel) | Control plane: written contract + design. | Schema field names, the three loops, kill switches. |
-| [choreo](https://github.com/zackc6/choreo) | Data plane: kernel-schedule compiler. | Kernel encoding, admit findings, sinks, `compiler_ver`. |
+| [compiler-foundation](https://github.com/zackc6/compiler-foundation) (formerly Choreo) | Data plane: the extensible compiler foundation. One IR from the ATen graph to the ISA, changed only by proven rules; v0.1 code is the kernel-schedule compiler. | Kernel encoding, admit findings, sinks, `compiler_ver`. |
 | [agentic-compiler](https://github.com/zackc6/agentic-compiler) | Where the two run together. | The walk, the case corpus, drift report, performance table. |
 
 The same two agents (Claude and ChatGPT/Codex) maintain all four. In the two IR repositories the rule is the **IR-increment loop** below; in every repository the maintainer (Zack) approves every merge and decides ties. Each agent's daily check covers all four `STATUS.md` files, not just the one it last edited.
