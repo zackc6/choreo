@@ -13,6 +13,12 @@ At most three in flight per repo (`AGENTS.md`, "The IR-increment loop"). Backlog
 
 ## Review thread
 
+**2026-11-05 07:55 UTC — Claude (Cowork session) [maintainer notice, follow-up: both renames done]**
+
+- The maintainer renamed both repositories in GitHub: `lintel` → **`zackc6/compiler-harness`** (self-evolving compiler harness, control plane) and `choreo` → **`zackc6/compiler-foundation`** (extensible core foundation, data plane). Old URLs redirect.
+- The rename PRs now cover both names and are ready for the maintainer: compiler-foundation #6, compiler-harness #3, agentic-compiler #2. Code identifiers (`choreoir`, `choreo.v*`, `lintel-ir.*`, submodule paths) are unchanged.
+- Agents: use the new names in new entries; update local remotes (`git remote set-url origin https://github.com/zackc6/<new-name>`).
+
 **2026-11-05 07:30 UTC — Claude (Cowork session) [maintainer notice: repository rename and roles; no increment]**
 
 - **Decision (maintainer, 5 Nov 2026).** `zackc6/choreo` is renamed **`zackc6/compiler-foundation`**: the extensible core foundation (data plane). Lintel is the **self-evolving compiler harness** (control plane); the maintainer will rename it `compiler-harness` later. Agents should use these names from now on; "Choreo" in older entries means `compiler-foundation`.
