@@ -1,16 +1,18 @@
-# Choreo IR
+# compiler-foundation
 
-Kernel-schedule compiler for an agentic search: a typed program, checks, and classical lowering to NVIDIA GPU and Ascend NPU.
+The extensible compiler foundation (data plane) of the agentic compiler: one IR from the whole ATen graph to the ISA, changed only by Lean-proven rules, extended through machine descriptions and new rules as the system evolves. The current code (v0.1, formerly Choreo IR) is a kernel-schedule compiler: a typed program, checks, and classical lowering to NVIDIA GPU and Ascend NPU.
+
+> **Naming (2026-11-05).** The maintainer renamed the repositories: `lintel` is now **`compiler-harness`**, the self-evolving compiler harness (control plane), and `choreo` is now **`compiler-foundation`**, the extensible core foundation (data plane). Code identifiers (`choreoir`, `choreo.v*` and `lintel-ir.*` schema names, the `lintel/` and `choreo/` submodule paths) stay until the v0.1 designs are replaced; "Lintel" and "Choreo" in older records mean these repositories.
 
 **Three loops stay apart.** Application search edits a `Kernel` under a pinned compiler version and gets a localized reject. IR evolution is a later commit on `main` that may change the representation, a check, or a sink. Controller improvement (how the search decides) is Lintel’s experiment, not this tree. The 23 September 2026 survey is the source of that split: [`goals/lintel-codesign.md`](goals/lintel-codesign.md).
 
 **Five functions have owners from the start:** represent, transform, map, validate, and coordinate. This tree’s representation is one kernel schedule (tiles, roles, barriers, layouts, memory spaces). A fixed stack of bands is not a law. Cross-kernel dependencies, placement, and the application contract are Lintel records. They are not fields on `Kernel`.
 
-Lintel (other repo) decides what to try, what to ship, and what to roll back. The demo that fails the product test is still “we compiled Choreo,” with no application contract. Sinks consume the schedule. Device ISA stays inside the sink.
+[compiler-harness](https://github.com/zackc6/compiler-harness) (formerly Lintel) decides what to try, what to ship, and what to roll back. The demo that fails the product test is still “we compiled Choreo,” with no application contract. Sinks consume the schedule. Device ISA stays inside the sink.
 
 Early architecture: [`goals/agentic-compiler.md`](goals/agentic-compiler.md). What Lintel should consume: [`docs/LINTEL_CONSUME.md`](docs/LINTEL_CONSUME.md). Implementer SOP: [`skills/choreo-lintel-codesign/SKILL.md`](skills/choreo-lintel-codesign/SKILL.md). Git: work is an IR increment on a gap from [`gaps/`](gaps/) (gap → IR change → carrier → falsifier) on a `claude/*` / `chatgpt/*` branch, argued in [`STATUS.md`](STATUS.md) (two rounds per side), and landed through a pull request the maintainer approves — see [`AGENTS.md`](AGENTS.md).
 
-Upstream sketch: [zackc6/choreo](https://github.com/zackc6/choreo). Survey: [zackc6/ai-compiler-survey](https://github.com/zackc6/ai-compiler-survey) through 2026-09-23.
+Survey: [zackc6/ai-compiler-survey](https://github.com/zackc6/ai-compiler-survey) through 2026-09-23.
 
 See [the 2026-11-03 hardware abstraction review](goals/hardware-abstraction-review.md) for tensor/tile first-class semantics, cross-programming-model tradeoffs, MLIR/TIRx alternatives, bounded optimization costs, and the checklist future design changes must address. This record does not implement those proposals.
 

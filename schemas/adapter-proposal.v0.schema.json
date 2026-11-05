@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/zackc6/choreo/schemas/adapter-proposal.v0.schema.json",
+  "$id": "https://github.com/zackc6/compiler-foundation/schemas/adapter-proposal.v0.schema.json",
   "title": "LintelAdapterProposal",
   "description": "Year-1 data-plane payload for Lintel propose/adapter_gate. Kernel JSON encoding is Choreo's (lowercase ops, target, compiler_ver). Lintel copies reject.{where,hint} onto a CFG edge. This tree does not freeze, land, or serve F. compile_ok is a Lintel gate after the sink, not a choreoir.check gate.",
   "type": "object",

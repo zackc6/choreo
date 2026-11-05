@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/zackc6/lintel/schemas/cache-key.v0.schema.json",
+  "$id": "https://github.com/zackc6/compiler-harness/schemas/cache-key.v0.schema.json",
   "title": "LintelCacheKey",
   "description": "Content-addressed freeze key. Same key after a model or compiler swap must replay the same admit decision or hard-fail. Never silently serve a new kernel. Fields are graph, hw, compiler, adapter, policy — not model_id, not enum_id, not Kernel.target.",
   "type": "object",
